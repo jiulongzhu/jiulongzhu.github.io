@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="概述ReservationSystem 是 YARN ResourceManager 的组件。YARN 的 ReservationSystem 为用户提供了提前保留资源的能力,以确保重要的生产作业可预测地运行。ReservationSystem 执行仔细的准入控制，并保证绝对资源量(而不是群集大小的百分比)。保留具有组和并发的语义，并且可以有随时间变化的资源需求。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Yarn ReservationSystem">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-28-Yarn%20ReservationSystem&#x2F;index.html">
+<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:description" content="概述ReservationSystem 是 YARN ResourceManager 的组件。YARN 的 ReservationSystem 为用户提供了提前保留资源的能力,以确保重要的生产作业可预测地运行。ReservationSystem 执行仔细的准入控制，并保证绝对资源量(而不是群集大小的百分比)。保留具有组和并发的语义，并且可以有随时间变化的资源需求。">
+<meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;pictures&#x2F;reservation&#x2F;yarn_reservation_system.png">
+<meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;pictures&#x2F;reservation&#x2F;reservationSystem.png">
+<meta property="article:published_time" content="2019-10-27T16:00:00.000Z">
+<meta property="article:modified_time" content="2019-12-12T03:59:00.426Z">
+<meta property="article:author" content="List">
+<meta property="article:tag" content="Yarn 2.7.3">
+<meta property="article:tag" content="源码解析">
+<meta property="article:tag" content="Yarn ReservationSystem">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;pictures&#x2F;reservation&#x2F;yarn_reservation_system.png">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2019-10-28-Yarn%20ReservationSystem/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>Yarn ReservationSystem | List's Blog</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">List's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">李斯特</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-10-28-Yarn%20ReservationSystem/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Yarn ReservationSystem
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-10-28 00:00:00" itemprop="dateCreated datePublished" datetime="2019-10-28T00:00:00+08:00">2019-10-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-12-12 11:59:00" itemprop="dateModified" datetime="2019-12-12T11:59:00+08:00">2019-12-12</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-10-28-Yarn%20ReservationSystem/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-10-28-Yarn ReservationSystem/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>ReservationSystem 是 YARN ResourceManager 的组件。YARN 的 ReservationSystem 为用户提供了提前保留资源的能力,以确保重要的生产作业可预测地运行。ReservationSystem 执行仔细的准入控制，并保证绝对资源量(而不是群集大小的百分比)。保留具有组和并发的语义，并且可以有随时间变化的资源需求。  </p>
+<a id="more"></a>
+
+<h2 id="工作流程"><a href="#工作流程" class="headerlink" title="工作流程"></a>工作流程</h2><p><img src="/img/pictures/reservation/yarn_reservation_system.png" alt="">  </p>
+<p>参考上图，预订资源的工作流程如下：  </p>
+<ul>
+<li>step 0: 用户提交预订创建请求，并收到包含 ReservationId 的响应。  </li>
+<li>step 1: 用户提交由 RDL(Reservation Definition Language)和 ReservationId 组成的 ReservationRequest。这描述了用户对资源(e.g. numContainer)和时间(e.g. duration)的需求。这可以通过常规的Client-to-RM协议(ApplicationClientProtocol)以编程方式完成，也可以通过RM的REST API来完成。如果提交的预订具有相同的ReservationId 并且RDL相同，则请求将成功但不会创建新的预订。如果RDL不同，则保留将被拒绝且请求失败</li>
+<li>step 2: ReservationSystem 委托 ReservationAgent(图中的GREE) 在计划(Plan)中为 ReservationRequest 找到一个合理的时间分配，计划(Plan)是一个跟踪当前所有已接受的预订请求以及系统中可用资源的内存数据结构。  </li>
+<li>step 3: SharingPolicy 提供了一种在预订请求上强制保证统计量的方法，决定接受或者拒绝预订。例如，CapacityOvertimePolicy允许强制保证用户可以在其所有预订中请求的瞬时最大容量，以及一段时期内对资源整体的限制，例如，用户所有的预订最多可以达到瞬时50％集群最大容量，但是在一天内，其平均值不能超过10％。(The SharingPolicy provides a way to enforce invariants on the reservation being accepted, potentially rejecting reservations. For example, the CapacityOvertimePolicy allows enforcement of both instantaneous max-capacity a user can request across all of his/her reservations and a limit on the integral of resources over a period of time, e.g., the user can reserve up to 50% of the cluster capacity instantanesouly, but in any 24h period of time he/she cannot exceed 10% average)  </li>
+<li>step 4: 成功验证后，ReservationSystem 会向用户返回一个ReservationId 作为票据    </li>
+<li>step 5: PlanFollower(线程周期调度)通过动态创建/调整/销毁队列将计划的状态发布到调度程序 </li>
+<li>step 6: 用户可以在(多个)应用程序的 ApplicationSubmissionContext 中指定 ReservationId 提交到可预订的队列(PlanQueue,具有 reservable 属性的 LeafQueue) </li>
+<li>step 7: 常规调度器将从创建的特殊队列中提供容器,以确保遵守资源预定。在预订的时间和资源限制下，用户的(多个)应用程序可以以容量/公平的方式共享资源   </li>
+<li>step 8: 预订系统可以兼容容量下降的情况。包括拒绝之前接受最晚的预订兼容 reservable queue 的容量骤减，移动预订到 reservable queue 下的 default队列来兼容超时(预订到期但app 没结束)应用以重建计划  </li>
+</ul>
+<p>注: step 8和官网解释不同。官网解释可能不实,参见源码解析-“step 8”</p>
+<h2 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h2><h3 id="涉及的类"><a href="#涉及的类" class="headerlink" title="涉及的类"></a>涉及的类</h3><ul>
+<li><p>org.apache.hadoop.yarn.server.resourcemanager.reservation.AbstractReservationSystem<br>该类继承了AbstractService,实现了ReservationSystem 并封装了Capacity/Fair 调度器下预订系统的核心实现<br>主要功能是:作为服务启动时加载配置文件中配置的 reservable LeafQueue 转换为 Plan;管理 PlanFollower,确保 Plan与常规调度器的同步  </p>
+<table>
+<thead>
+<tr>
+<th align="left">方法</th>
+<th align="center">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">setRMContext</td>
+<td align="center">保存 rmContext 指针</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">reinitialize</td>
+<td align="center">重新初始化 ReservationSystem</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">getPlan</td>
+<td align="center">获取已被加载的 Plan</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">getAllPlans</td>
+<td align="center">获取已被加载的所有 Plan</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">synchronizePlan</td>
+<td align="center">使用 PlanFollower 同步 Plan 与常规调度器</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">getPlanFollowerTimeStep</td>
+<td align="center">PlanFollower 步长</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">getNewReservationId</td>
+<td align="center">获取一个全局唯一的reservationId</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">getQueueForReservation</td>
+<td align="center">获取reservationId关联的队列</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">setQueueForReservation</td>
+<td align="center">为reservationId关联队列</td>
+<td align="left"></td>
+</tr>
+</tbody></table>
+</li>
+<li><p>org.apache.hadoop.yarn.server.resourcemanager.reservation.AbstractSchedulerPlanFollower<br>该类实现了 PlanFollower与 Runnable 接口<br>主要功能是:周期性同步常规调度器与 Plan。通过将计划中的每个预订的当前资源映射到常规调度器(e.g. 队列的调整能力,设置池权重,调整应用优先级)，来影响调度器的资源分配 进而达到 保证作业与Plan 中预订一致的方式来使用资源。一个关键概念是将预订的绝对值式资源转换为队列的优先级和容量。PlanFollower 也会向 Plan 来同步集群总资源的变化使其作出相应的调整。  </p>
+<table>
+<thead>
+<tr>
+<th align="left">方法</th>
+<th align="left">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">init</td>
+<td align="left">通过 SystemClock,ResourceSchduler 和Plans 来初始化PlanFollower</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">synchronizePlan</td>
+<td align="left">同步指定 Plan和常规调度器</td>
+<td align="left">周期性调用;时间紧迫时同步阻塞调用</td>
+</tr>
+<tr>
+<td align="left">setPlans</td>
+<td align="left">重置 PlanFollower 同步的 Plan 集合</td>
+<td align="left"></td>
+</tr>
+</tbody></table>
+</li>
+<li><p>org.apache.hadoop.yarn.server.resourcemanager.reservation.InMemoryPlan<br>该接口实现了 Plan 接口,Plan 接口继承了PlanContext, PlanView, PlanEdit。实现只有 InMemoryPlan<br>Plan 代表着预订系统的核心数据结构,维护着集群资源的工作安排(分配或收回)计划。用户将 ReservationRequest 提交给 RM 之后,RM 委托给 ReservationAgent，ReservationAgent 通过PlanView 接口咨询该 Plan 是否能满足 RDL 时间且资源约束。如果可以分配,则通过 PlanEdit 接口将其存储在该 Plan 中。之后便向用户返回 ReservationId 票据,用户可通过该票据在预订的时间范围使用预订的资源。<br>PlanFollower将会周期性的从 Plan 中读取最新工作安排计划(队列瞬时容量),并同步给常规调度器,进而影响正在运行作业占用的资源。<br>接口中有三类方法:  PlanContext 负责配置信息;PlanView 负责对Plan 状态的只读访问;PlanEdit 负责对 Plan 状态写入访问。  </p>
+<table>
+<thead>
+<tr>
+<th align="left">方法</th>
+<th align="center">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">getStep</td>
+<td align="center">获取 Plan 的时间步长</td>
+<td align="left">PlanContext,同 PlanFollower 的时间步长</td>
+</tr>
+<tr>
+<td align="left">getReservationAgent</td>
+<td align="center">获取 Plan关联的 ReservationAgent</td>
+<td align="left">PlanContext</td>
+</tr>
+<tr>
+<td align="left">getReplanner</td>
+<td align="center">使用 Planner 对象来应对Plan 的资源意外减少</td>
+<td align="left">PlanContext</td>
+</tr>
+<tr>
+<td align="left">getSharingPolicy</td>
+<td align="center">SharingPolicy 控制多用户共享计划资源</td>
+<td align="left">PlanContext</td>
+</tr>
+<tr>
+<td align="left">getReservationById</td>
+<td align="center">通过 ReservationId 获取 Reservation 的详细信息</td>
+<td align="left">PlanView</td>
+</tr>
+<tr>
+<td align="left">getReservationsAtTime</td>
+<td align="center">获取指定时间点所有活跃的 Reservation 的详细信息</td>
+<td align="left">PlanView</td>
+</tr>
+<tr>
+<td align="left">getAllReservations</td>
+<td align="center">获取 Plan 中所有预订信息</td>
+<td align="left">PlanView</td>
+</tr>
+<tr>
+<td align="left">getTotalCommittedResources</td>
+<td align="center">获取指定时间点所有预定的总资源量</td>
+<td align="left">PlanView</td>
+</tr>
+<tr>
+<td align="left">getConsumptionForUser</td>
+<td align="center">获取指定时间点指定用户预定的总资源量</td>
+<td align="left">PlanView</td>
+</tr>
+<tr>
+<td align="left">getEarliestStartTime</td>
+<td align="center">获取计划中最早的预订开始时间</td>
+<td align="left">PlanView</td>
+</tr>
+<tr>
+<td align="left">getLastEndTime</td>
+<td align="center">获取计划中最晚的预订结束时间</td>
+<td align="left">PlanView</td>
+</tr>
+<tr>
+<td align="left">addReservation</td>
+<td align="center">增加一个预订</td>
+<td align="left">PlanEdit</td>
+</tr>
+<tr>
+<td align="left">updateReservation</td>
+<td align="center">更新一个预订</td>
+<td align="left">PlanEdit</td>
+</tr>
+<tr>
+<td align="left">deleteReservation</td>
+<td align="center">删除一个预订</td>
+<td align="left">PlanEdit</td>
+</tr>
+<tr>
+<td align="left">archiveCompletedReservations</td>
+<td align="center">清除所有的过期预订</td>
+<td align="left">PlanEdit</td>
+</tr>
+</tbody></table>
+</li>
+</ul>
+<p>　　仅列举出核心方法,实际不限于此  </p>
+<ul>
+<li><p>org.apache.hadoop.yarn.server.resourcemanager.reservation.GreedyReservationAgent<br>实现了ReservationAgent接口。 
+一个简单的贪婪放置策略来满足用户预订的代理。具体方式是:按照 ReservationRequests中的各个 ReservationRequest作为单独的阶段,从deadline 开始向后移动至 arrival 来安排预订请求。该代理不考虑本地性,仅仅考虑容器粒度的验证(e.g. 不能超过最大容器大小)  </p>
+<table>
+<thead>
+<tr>
+<th align="left">方法</th>
+<th align="center">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">createReservation</td>
+<td align="center">使用此代理尝试创建一个预订</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">updateReservation</td>
+<td align="center">使用此代理更新一个已有预订</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">deleteReservation</td>
+<td align="center">使用此代理删除一个已有预订</td>
+<td align="left"></td>
+</tr>
+</tbody></table>
+</li>
+<li><p>org.apache.hadoop.yarn.server.resourcemanager.reservation.CapacityOverTimePolicy<br>主要功能是校验 Plan 能否接受用户预订请求 。实现类 CapacityOverTimePolicy使用容量的按时间拓展概念：策略会保证该用户的当前预订申请和已生效的预订申请资源不超过瞬时资源限制(e.g. reservable queue capacity * 1),且在 24h 时间窗口内不能超过平均资源限制(e.g. reservable queue capacity * 0.5)。从某种意义来说,预订可以使用 reservable queue 的大部分容量 但只要保证快速归还以保证平均资源限制，这可以防止资源滥用且增加了灵活性。通过配置瞬时资源限制和平均资源限制以及时间窗口,策略可以使 reservable queue 达到即时执行(max=100%,avg=100%)和完全灵活(max=?,avg=?,保留给其他用户或系统)的效果。   </p>
+<table>
+<thead>
+<tr>
+<th align="left">方法</th>
+<th align="center">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">init</td>
+<td align="center">初始化 Policy</td>
+<td align="left">策略必要的配置读取</td>
+</tr>
+<tr>
+<td align="left">validate</td>
+<td align="center">校验 Plan 能否接受用户预订请求</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">getValidWindow</td>
+<td align="center">预订资源的过期时间</td>
+<td align="left">窗口为[-24h,当前)。预订的 deadline 在此之前的记录将被删除</td>
+</tr>
+</tbody></table>
+</li>
+<li><p>org.apache.hadoop.yarn.server.resourcemanager.reservation.Planner<br>实现类只有SimpleCapacityReplanner,且功能远不及 Planner 的设计(增删改 Plan)，只有删除预订资源的功能：从当前时刻开始直到 min{最后一个预约endtime，一个小时之后}，如果所有用户预订资源总量超过 reservable queue capacity，则删除接受时间较晚的一批预订。 </p>
+<table>
+<thead>
+<tr>
+<th align="left">方法</th>
+<th align="left">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">init</td>
+<td align="left">初始化 Planner</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">plan</td>
+<td align="left">更新现有的 Plan,或增删改已有预订或增加一个新的预订</td>
+<td align="left">SCR 只支持删除晚的预订以保证预订资源总量不超过队列最低配额</td>
+</tr>
+</tbody></table>
+</li>
+<li><p>org.apache.hadoop.yarn.server.resourcemanager.reservation.RLESparseResourceAllocation<br>预订系统的核心数据结构，是一种运行长度编码(Run Length Encoded)的稀疏数据结构(TreeMap)，可随着时间的推移维护资源分配。维护者各事件点(预订分配 starttime，endtime)时(Plan/当前预订)全局应有的资源总量。  </p>
+<table>
+<thead>
+<tr>
+<th align="left">方法</th>
+<th align="left">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">getEarliestStartTime</td>
+<td align="left">最早的资源分配的时间戳</td>
+<td align="left">treemap  firstKey</td>
+</tr>
+<tr>
+<td align="left">getLatestEndTime</td>
+<td align="left">最晚的资源分配的时间戳</td>
+<td align="left">treemap lastKey</td>
+</tr>
+<tr>
+<td align="left">getCapacityAtTime</td>
+<td align="left">该时间点的 Plan 已预订资源量</td>
+<td align="left">treemap floorKey</td>
+</tr>
+<tr>
+<td align="left">addInterval</td>
+<td align="left">在treemap 中新增一个时间范围的预约资源记录</td>
+<td align="left">维护开始点和结束点的资源量</td>
+</tr>
+<tr>
+<td align="left">removeInterval</td>
+<td align="left">在 treemap 中删除一个时间范围的预约资源记录</td>
+<td align="left">维护开始点和结束点的资源量</td>
+</tr>
+<tr>
+<td align="left">addCompositeInterval</td>
+<td align="left">在 treemap 中新增一个时间范围的多个预订资源记录</td>
+<td align="left">never used</td>
+</tr>
+</tbody></table>
+</li>
+</ul>
+<blockquote>
+</blockquote>
+<p> TreeMap 的floorEntry(targetKey) 和 lowerEntry(targetKey)  区别:<br> floorEntry 返回 key 小于等于 targetKey 的键值对,无则 null<br> lowerEntry 返回 key 严格小于 targetKey 的键值对,无则 null  </p>
+<ul>
+<li>org.apache.hadoop.yarn.server.resourcemanager.reservation.InMemoryReservationAllocation
+实现自 ResourceAllocation。预订分配的结果，内存数据结构，包含预订的整体开始结束时间，ReservationSystem 校验(GA 校验资源/SharingPolicy 校验用户违规)通过 ReservationSubmissionRequest 的时间，&lt;时间段，资源量&gt;的分配细节和RLESparseResourceAllocation    </li>
+</ul>
+<table>
+<thead>
+<tr>
+<th align="left">方法</th>
+<th align="left">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">compareTo</td>
+<td align="left">按 acceptTime比较,晚的在前</td>
+<td align="left">比较器, Plan 队列资源骤减时,删除部分晚的的 ResourceAllocation</td>
+</tr>
+</tbody></table>
+<ul>
+<li><p>org.apache.hadoop.yarn.api.protocolrecords.ReservationSubmissionRequest<br>客户端封装ReservationSubmissionRequest 请求，通过 client-RM 接口提交给 RM，数据结构如下<br>　　queueName:String    //支持预订资源的队列<br>　　rd:ReservationDefinition //预订定义<br>　　　　arrival:long  //预订开始时间的 最早时间<br>　　　　deadline:long   //预订结束时间的 最晚时间<br>　　　　name:String  //名称<br>　　　　reservationRequests:ReservationRequests  //预订请求    　
+　　　　　　reservationResources:List&lt;ReservationRequest&gt;<br>　　　　　　　　capability:Capacity  //每个预订请求的资源量<br>　　　　　　　　numContainers:int  //预订的 container 数量<br>　　　　　　　　concurrency:int //并发度。numContainers 可以分批分配<br>　　　　　　　　duration:long  //使用时间<br>　　　　type:ReservationRequestInterpreter  //多个预订请求之间的依赖关系  </p>
+</li>
+<li><p>org.apache.hadoop.yarn.api.records.ReservationRequestInterpreter<br>枚举类型，用以表示多个预订请求之间的依赖关系(或称: 组关系)      </p>
+<table>
+<thead>
+<tr>
+<th align="left">类型</th>
+<th align="left">含义</th>
+<th align="left">场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">R_ANY</td>
+<td align="left">仅满足 RDL 中一个预订请求即可</td>
+<td align="left">有多种等效的方式满足要求。e.g. 1个&lt;4G,2core&gt;或2个&lt;2G,1core&gt;。Agent 会决定使用最合适的ReservationRequest</td>
+</tr>
+<tr>
+<td align="left">R_ALL</td>
+<td align="left">需要满足 RDL中所有预订请求,请求的分配没有限制时间先后</td>
+<td align="left">事务</td>
+</tr>
+<tr>
+<td align="left">R_ORDER</td>
+<td align="left">需要满足 RDL 中所有预订请求,且有严格的时间限制。k 位置的分配时间段必须在 k+1位置分配时间段之前(无交集)，且 k 位置分配的结束时间和 k+1位置分配的开始时间可以有任意长的时间间隔</td>
+<td align="left">具有固定依赖的阶段性工作流。e.g. 第一个作业需要 1个&lt;4G,2core&gt; 5min，其输出作为第二个作业的输入，第二个作业需要 2 个&lt;2G,1core&gt; 10min，则两个作业预订的分配时间段必然不能重叠</td>
+</tr>
+<tr>
+<td align="left">R_ORDER_NO_GAP</td>
+<td align="left">R_ORDER 的严格版本，要求 k 位置分配的结束时间和 k+1 位置分配的开始时间相同、不能有任何间隙,即 “zero-size gap”,”no_gap”</td>
+<td align="left">1.当前一个作业输出规模比较大时,避免保留太长时间 2.实时性要求很高的场景,作业间时间差则增大了工作流累计延时</td>
+</tr>
+</tbody></table>
+</li>
+<li><p>org.apache.hadoop.yarn.api.protocolrecords.ReservationSubmissionResponse<br>客户端提交 ReservationSubmissionRequest 请求后，若RM 校验通过可以分配预订，则返回 reservationId给客户端。数据结构如下<br>　　reservationId:ReservationId<br>　　　　clusterTimestamp:long<br>　　　　id:long   </p>
+</li>
+</ul>
+<h3 id="step-0"><a href="#step-0" class="headerlink" title="step 0"></a>step 0</h3><p>用户提交预订创建请求，并收到包含 ReservationId 的响应  </p>
+<p>[ApplicationClientProtocol.java]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">public ReservationSubmissionResponse submitReservation(</span><br><span class="line">      ReservationSubmissionRequest request) throws YarnException, IOException</span><br></pre></td></tr></table></figure>
+<h3 id="step-1"><a href="#step-1" class="headerlink" title="step 1"></a>step 1</h3><p>用户提交由 RDL(Reservation Definition Language)和 ReservationId 组成的 ReservationRequest。描述了用户对资源(e.g. numContainer)和时间(e.g. duration)的需求,可以通过常规的Client-to-RM协议(ApplicationClientProtocol)以编程方式完成，也可以通过RM的REST API来完成。如果提交的预订具有相同的ReservationId 并且RDL相同，则请求将成功但不会创建新的预订。如果RDL不同，则保留将被拒绝且请求失败<br>以 TestCase 中的代码片段为例  </p>
+<p>[TestClientRMService.java]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line">@Test</span><br><span class="line">public void testReservationAPIs() &#123;</span><br><span class="line">	....</span><br><span class="line">    &#x2F;&#x2F;创建一个预订请求</span><br><span class="line">    Clock clock &#x3D; new UTCClock();</span><br><span class="line">    &#x2F;&#x2F;预订最早开始时间</span><br><span class="line">    long arrival &#x3D; clock.getTime();	   </span><br><span class="line">    &#x2F;&#x2F;使用时长 </span><br><span class="line">    long duration &#x3D; 60000;    </span><br><span class="line">    &#x2F;&#x2F;预订的最晚结束时间</span><br><span class="line">    long deadline &#x3D; (long) (arrival + 1.05 * duration);</span><br><span class="line">    &#x2F;&#x2F;RDL: Rervation Define Language </span><br><span class="line">    &#x2F;&#x2F;请求 4 个 &lt;1G,1core&gt; container,使用时长是 6000ms,使用开始的最早时间是 arrival,使用结束的最晚内时间是 deadline。</span><br><span class="line">    ReservationSubmissionRequest sRequest &#x3D;</span><br><span class="line">        createSimpleReservationRequest(4, arrival, deadline, duration);</span><br><span class="line">    ReservationSubmissionResponse sResponse &#x3D; null;</span><br><span class="line">    try &#123;</span><br><span class="line">      sResponse &#x3D; clientService.submitReservation(sRequest);</span><br><span class="line">    &#125; catch (Exception e) &#123;</span><br><span class="line">      Assert.fail(e.getMessage());</span><br><span class="line">    &#125;</span><br><span class="line">    ....</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">private ReservationSubmissionRequest createSimpleReservationRequest(</span><br><span class="line">      int numContainers, long arrival, long deadline, long duration) &#123;</span><br><span class="line">    ReservationRequest r &#x3D;</span><br><span class="line">        ReservationRequest.newInstance(Resource.newInstance(1024, 1),</span><br><span class="line">            numContainers, 1, duration);</span><br><span class="line">            &#x2F;&#x2F;R_ALL 满足所有请求</span><br><span class="line">    ReservationRequests reqs &#x3D;</span><br><span class="line">        ReservationRequests.newInstance(Collections.singletonList(r),</span><br><span class="line">            ReservationRequestInterpreter.R_ALL);</span><br><span class="line">    ReservationDefinition rDef &#x3D;</span><br><span class="line">        ReservationDefinition.newInstance(arrival, deadline, reqs,</span><br><span class="line">            &quot;testClientRMService#reservation&quot;);</span><br><span class="line">    ReservationSubmissionRequest request &#x3D;</span><br><span class="line">        ReservationSubmissionRequest.newInstance(rDef,</span><br><span class="line">            ReservationSystemTestUtil.reservationQ);</span><br><span class="line">    return request;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="step-2"><a href="#step-2" class="headerlink" title="step 2"></a>step 2</h3><p>ReservationSystem 委托 ReservationAgent(图中的GREE) 在计划(Plan)中为 ReservationRequest 找到一个合理的时间分配，计划(Plan)是一个跟踪当前所有已接受的预订请求以及系统中可用资源的内存数据结构。   </p>
+<p>[ClientRMService.java]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line">@Override</span><br><span class="line">  public ReservationSubmissionResponse submitReservation(</span><br><span class="line">      ReservationSubmissionRequest request) throws YarnException, IOException &#123;</span><br><span class="line">    &#x2F;&#x2F; 检查 ReservactionSystem 是否启用</span><br><span class="line">    checkReservationSytem(AuditConstants.SUBMIT_RESERVATION_REQUEST);</span><br><span class="line">    ReservationSubmissionResponse response &#x3D;</span><br><span class="line">        recordFactory.newRecordInstance(ReservationSubmissionResponse.class);</span><br><span class="line">    &#x2F;&#x2F; 通过 AtmicLong 创建全局唯一的ReservationId</span><br><span class="line">    ReservationId reservationId &#x3D; reservationSystem.getNewReservationId();</span><br><span class="line">    &#x2F;&#x2F; 第一步:  校验</span><br><span class="line">    &#x2F;&#x2F; 1.预订请求指定了 queue; 2.指定的 queue 是 reservable queue,即属于 ReservationSystem 管理  </span><br><span class="line">    &#x2F;&#x2F; 2.Reservation Define Language 校验</span><br><span class="line">    &#x2F;&#x2F;	2a. 空值检验  2b. deadline 不能早于当前时间 2c. ReservationRequests 空值及空集判断  </span><br><span class="line">    &#x2F;&#x2F;	2d. 分配所有请求的最短时间(R_ANY,R_ALL:取最大;R_ORDER..取和)不能超过 deadline-arrival </span><br><span class="line">    &#x2F;&#x2F;	2e. 分配所有请求的最大资源量(concurrency * request capacity)不能超过 reservable queue capacity</span><br><span class="line">    Plan plan &#x3D;</span><br><span class="line">        rValidator.validateReservationSubmissionRequest(reservationSystem,</span><br><span class="line">            request, reservationId);</span><br><span class="line">    &#x2F;&#x2F; 校验 ACL	</span><br><span class="line">    String queueName &#x3D; request.getQueue();</span><br><span class="line">    String user &#x3D;</span><br><span class="line">        checkReservationACLs(queueName,</span><br><span class="line">            AuditConstants.SUBMIT_RESERVATION_REQUEST);</span><br><span class="line">    try &#123;</span><br><span class="line">      &#x2F;&#x2F; 第二步:  使用 ReservationAgent 来尝试放置预订请求</span><br><span class="line">      boolean result &#x3D;</span><br><span class="line">          plan.getReservationAgent().createReservation(reservationId, user,</span><br><span class="line">              plan, request.getReservationDefinition());</span><br><span class="line">      if (result) &#123;</span><br><span class="line">        &#x2F;&#x2F; 同步 reservationSystem &lt;reservationId,queueName&gt;关系</span><br><span class="line">        reservationSystem.setQueueForReservation(reservationId, queueName);</span><br><span class="line">        &#x2F;&#x2F; create the reservation synchronously if required</span><br><span class="line">        &#x2F;&#x2F; 第三步:  如下,若预留的 arrival 时间早于当前(错过) PlanFollower 一个步长,则同步创建</span><br><span class="line">        refreshScheduler(queueName, request.getReservationDefinition(),</span><br><span class="line">            reservationId.toString());</span><br><span class="line">  	&#x2F;&#x2F; response 中返回放置预订请求的 reservationId</span><br><span class="line">        response.setReservationId(reservationId);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; catch (PlanningException e) &#123;</span><br><span class="line">     ...</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    return response;</span><br><span class="line">  &#125;</span><br><span class="line">   private void refreshScheduler(String planName,</span><br><span class="line">      ReservationDefinition contract, String reservationId) &#123;</span><br><span class="line">    if ((contract.getArrival() - clock.getTime()) &lt; reservationSystem</span><br><span class="line">        .getPlanFollowerTimeStep()) &#123;</span><br><span class="line">      ....</span><br><span class="line">      &#x2F;&#x2F;后续再说源码</span><br><span class="line">      reservationSystem.synchronizePlan(planName);</span><br><span class="line">      ....</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>在第二步中,RMClientService 委托 Plan(reservable queue 的映射) 绑定的 ReservationAgent 来决定是否放置该预订请求<br>ReservationAgent(RA)将预订请求中的每个 ResourceRequest(RR)作为一个单独的 stage 尝试放置,并在放置时考虑 ReservationRequestInterpreter(RRI)组关系的处理。从最后一个 stage 开始向前依次放置，使用 Plan 已有的预订计划累计的数据和当次预订请求的累计中间数据判断能否放置当前 RR来影响当前 RR放置时间策略并存储最终放置策略结果。   </p>
+<p>[GreedyReservationAgent.java]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br></pre></td><td class="code"><pre><span class="line">private boolean computeAllocation(ReservationId reservationId, String user,</span><br><span class="line">      Plan plan, ReservationDefinition contract,</span><br><span class="line">      ReservationAllocation oldReservation) throws PlanningException,</span><br><span class="line">      ContractValidationException &#123;</span><br><span class="line">    LOG.info(&quot;placing the following ReservationRequest: &quot; + contract);</span><br><span class="line">    &#x2F;&#x2F; reservable queue capacity </span><br><span class="line">    Resource totalCapacity &#x3D; plan.getTotalCapacity();</span><br><span class="line">    </span><br><span class="line">   &#x2F;&#x2F; 译文:考虑在此增加逻辑来调整&quot;ResourceDefinition&quot; 来解决系统的缺陷(e.g. 大型容器的调度延迟) </span><br><span class="line">   &#x2F;&#x2F;  TODO: 想不出会在这个位置使用什么样的策略来解决大容器调度延迟问题? 逻辑能转移到常规调度吗</span><br><span class="line">    </span><br><span class="line">    &#x2F;&#x2F; 使用保守策略规整缩短 [arrival,deadline]区间</span><br><span class="line">    long earliestStart &#x3D; contract.getArrival();</span><br><span class="line">    long step &#x3D; plan.getStep();</span><br><span class="line">    if (earliestStart % step !&#x3D; 0) &#123;</span><br><span class="line">      earliestStart &#x3D; earliestStart + (step - (earliestStart % step));</span><br><span class="line">    &#125;</span><br><span class="line">    long deadline &#x3D;</span><br><span class="line">        contract.getDeadline() - contract.getDeadline() % plan.getStep();</span><br><span class="line">        </span><br><span class="line">    &#x2F;&#x2F; 将每个 ReservationRequest(RR) 作为一个单独的 stage,设置一些阶段间的临时变量</span><br><span class="line">    long curDeadline &#x3D; deadline;</span><br><span class="line">    long oldDeadline &#x3D; -1;</span><br><span class="line">    &#x2F;&#x2F; 当次预订请求，全部 RR 放置时间策略结果的(中间)数据结构 </span><br><span class="line">    Map&lt;ReservationInterval, ReservationRequest&gt; allocations &#x3D;</span><br><span class="line">        new HashMap&lt;ReservationInterval, ReservationRequest&gt;();</span><br><span class="line">     &#x2F;&#x2F; 当次预订请求，全部 RR 放置造成&lt;时间-资源&gt;变动结果的(中间)数据结构  </span><br><span class="line">    RLESparseResourceAllocation tempAssigned &#x3D;</span><br><span class="line">        new RLESparseResourceAllocation(plan.getResourceCalculator(),</span><br><span class="line">            plan.getMinimumAllocation());</span><br><span class="line"></span><br><span class="line">    List&lt;ReservationRequest&gt; stages &#x3D; contract.getReservationRequests()</span><br><span class="line">        .getReservationResources();</span><br><span class="line">    ReservationRequestInterpreter type &#x3D; contract.getReservationRequests()</span><br><span class="line">        .getInterpreter();</span><br><span class="line">    &#x2F;&#x2F; 使用迭代器 从最后一个元素之后的 null 向前迭代</span><br><span class="line">    for (ListIterator&lt;ReservationRequest&gt; li &#x3D; </span><br><span class="line">        stages.listIterator(stages.size()); li.hasPrevious();) &#123;</span><br><span class="line">      ReservationRequest currentReservationStage &#x3D; li.previous();</span><br><span class="line">       &#x2F;&#x2F;第一步:  校验 RR</span><br><span class="line">      &#x2F;&#x2F; 1.concurrency &gt; 0; 2.numContainer&gt;0; 3. numContainer 必须是 concurrency 的倍数; 4.单容器大小不得超过maximumAllocation</span><br><span class="line">      validateInput(plan, currentReservationStage, totalCapacity);</span><br><span class="line">      &#x2F;&#x2F;第二步:  尝试分配单个 RR</span><br><span class="line">      Map&lt;ReservationInterval, ReservationRequest&gt; curAlloc &#x3D;</span><br><span class="line">          placeSingleStage(plan, tempAssigned, currentReservationStage,</span><br><span class="line">              earliestStart, curDeadline, oldReservation, totalCapacity);</span><br><span class="line"></span><br><span class="line">      if (curAlloc &#x3D;&#x3D; null) &#123;</span><br><span class="line">        &#x2F;&#x2F; 组关系是 R_ALL,R_ORDER,R_NO_GAP 时，一个 RR 分配失败 导致整个事务失败</span><br><span class="line">        &#x2F;&#x2F; 组关系是 R_ANY,一个 RR 分配失败可以尝试其他 RR </span><br><span class="line">        if (type !&#x3D; ReservationRequestInterpreter.R_ANY) &#123;</span><br><span class="line">          throw new PlanningException(&quot;The GreedyAgent&quot;</span><br><span class="line">              + &quot; couldn&#39;t find a valid allocation for your request&quot;);</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">          continue;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">       &#x2F;&#x2F; 可以放置当前 RR(stage)</span><br><span class="line">       </span><br><span class="line">        allocations.putAll(curAlloc);</span><br><span class="line">       &#x2F;&#x2F; 组关系是 R_ANY 的话,可以终止后续 stage 的尝试了</span><br><span class="line">        if (type &#x3D;&#x3D; ReservationRequestInterpreter.R_ANY) &#123;</span><br><span class="line">          break;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        &#x2F;&#x2F; 如果组关系是 R_ODER,R_ODER_NO_GAP，则通过设置 curDeadline 来确保 RR 之间的先后关系 </span><br><span class="line">        &#x2F;&#x2F; 将下一个 RR 的 deadline 设置为当前 RR 分配中最早的开始时间</span><br><span class="line">        if (type &#x3D;&#x3D; ReservationRequestInterpreter.R_ORDER</span><br><span class="line">            || type &#x3D;&#x3D; ReservationRequestInterpreter.R_ORDER_NO_GAP) &#123;</span><br><span class="line">          curDeadline &#x3D; findEarliestTime(curAlloc.keySet());</span><br><span class="line"></span><br><span class="line">          &#x2F;&#x2F; 对于 R_ORDER_NO_GAP,确认当前分配和前一个(后向)分配之间没有空隙</span><br><span class="line">          &#x2F;&#x2F; 空隙并非之前理解的完全相等,[t0,t1) 与 [t1,t2)之间的关系,而是不超过 Plan 的时间步长即可 </span><br><span class="line">          if (type &#x3D;&#x3D; ReservationRequestInterpreter.R_ORDER_NO_GAP</span><br><span class="line">              &amp;&amp; oldDeadline &gt; 0) &#123;</span><br><span class="line">            if (oldDeadline - findLatestTime(curAlloc.keySet()) &gt; plan</span><br><span class="line">                .getStep()) &#123;</span><br><span class="line">              throw new PlanningException(&quot;The GreedyAgent&quot;</span><br><span class="line">                  + &quot; couldn&#39;t find a valid allocation for your request&quot;);</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line">          &#x2F;&#x2F; keep the variable oldDeadline pointing to the last deadline we</span><br><span class="line">          &#x2F;&#x2F; found</span><br><span class="line">          oldDeadline &#x3D; curDeadline;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 没有为预订请求分配到&lt;时间,资源&gt;,通过 throws exception 的方式来快速失败</span><br><span class="line">    if (allocations.isEmpty()) &#123;</span><br><span class="line">      throw new PlanningException(&quot;The GreedyAgent&quot;</span><br><span class="line">          + &quot; couldn&#39;t find a valid allocation for your request&quot;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; 第三步:  创建预订</span><br><span class="line">  &#x2F;&#x2F; 在[arrival,earliestTime)之间加入了 &quot;零填充&quot;,以表明其是从arrival time 开始的预订</span><br><span class="line">  &#x2F;&#x2F; TODO:在开头和末尾添加&quot;零填充&quot;的意义是什么?没有的话 会有什么问题  </span><br><span class="line">    ReservationRequest ZERO_RES &#x3D;</span><br><span class="line">        ReservationRequest.newInstance(Resource.newInstance(0, 0), 0);</span><br><span class="line">    long firstStartTime &#x3D; findEarliestTime(allocations.keySet());</span><br><span class="line">    if (firstStartTime &gt; earliestStart) &#123;</span><br><span class="line">      allocations.put(new ReservationInterval(earliestStart,</span><br><span class="line">          firstStartTime), ZERO_RES);</span><br><span class="line">      firstStartTime &#x3D; earliestStart;</span><br><span class="line">      &#x2F;&#x2F; 译: 考虑在[lastEndTime,deadline)添加&quot;零填充&quot;</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 译:这有待验证,其他代理可能也在放置(同步问题);有代理不知道的 SharingPolicy</span><br><span class="line">    ReservationAllocation capReservation &#x3D;</span><br><span class="line">        new InMemoryReservationAllocation(reservationId, contract, user,</span><br><span class="line">            plan.getQueueName(), firstStartTime,</span><br><span class="line">            findLatestTime(allocations.keySet()), allocations,</span><br><span class="line">            plan.getResourceCalculator(), plan.getMinimumAllocation());</span><br><span class="line">    &#x2F;&#x2F; 第四步: 新增或更新已有预订分配 。在 step 3 中解释</span><br><span class="line">    if (oldReservation !&#x3D; null) &#123;</span><br><span class="line">      return plan.updateReservation(capReservation);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      return plan.addReservation(capReservation);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>再看上述 第二步:  尝试分配单个 RR<br>这是整个流程中最重要的部分: 决定了用户的每个 RR 能不能放置,放置在哪个时间段,放置几个 container<br>核心思想是: 从 deadline(动态 deadline)开始向后尝试，每次尝试都遍历 duration 时间，判断 duration 时间每个时间步长是否超过了 capacity(即判断 指定大小的资源能不能占用当前时间段，故称”放置”)。然后向后移动一个时间步长，直至剩余时间不足以满足 duration 或者放置了 RR 中所有 container 结束       </p>
+<p>[GreedyReservationAgent.java]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br></pre></td><td class="code"><pre><span class="line">private Map&lt;ReservationInterval, ReservationRequest&gt; placeSingleStage(</span><br><span class="line">      Plan plan, RLESparseResourceAllocation tempAssigned,</span><br><span class="line">      ReservationRequest rr, long earliestStart, long curDeadline,</span><br><span class="line">      ReservationAllocation oldResAllocation, final Resource totalCapacity) &#123;</span><br><span class="line"></span><br><span class="line">    Map&lt;ReservationInterval, ReservationRequest&gt; allocationRequests &#x3D;</span><br><span class="line">        new HashMap&lt;ReservationInterval, ReservationRequest&gt;();</span><br><span class="line"></span><br><span class="line">    Resource gang &#x3D; Resources.multiply(rr.getCapability(), rr.getConcurrency());</span><br><span class="line">    long dur &#x3D; rr.getDuration();</span><br><span class="line">    long step &#x3D; plan.getStep();</span><br><span class="line">    if (dur % step !&#x3D; 0) &#123;</span><br><span class="line">      dur +&#x3D; (step - (dur % step));</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 将一个并发作为一个原子性的组分配 </span><br><span class="line">    &#x2F;&#x2F; 每次分配资源量: gang&#x3D;capacity * concurrency </span><br><span class="line">    &#x2F;&#x2F;     共计分配次数: gangsToPlace&#x3D; numContainers&#x2F;concurrency  </span><br><span class="line">    int gangsToPlace &#x3D; rr.getNumContainers() &#x2F; rr.getConcurrency();</span><br><span class="line">    int maxGang &#x3D; 0;</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; loop trying to place until we are done, or we are considering</span><br><span class="line">    &#x2F;&#x2F; an invalid range of times</span><br><span class="line">    &#x2F;&#x2F; 循环尝试分配 直至所有的 gang 原子组都分配完或者剩余时间不足以容纳一个 duration</span><br><span class="line">    while (gangsToPlace &gt; 0 &amp;&amp; curDeadline - dur &gt;&#x3D; earliestStart) &#123;</span><br><span class="line"></span><br><span class="line">      &#x2F;&#x2F; as we run along we remember how many gangs we can fit, and what</span><br><span class="line">      &#x2F;&#x2F; was the most constraining moment in time (we will restart just</span><br><span class="line">      &#x2F;&#x2F; after that to place the next batch)</span><br><span class="line">      maxGang &#x3D; gangsToPlace;</span><br><span class="line">      long minPoint &#x3D; curDeadline;</span><br><span class="line">      int curMaxGang &#x3D; maxGang;</span><br><span class="line"></span><br><span class="line">      &#x2F;&#x2F; 尝试在[curDeadline-duration,curDeadline) 长为 duration 的区间内放置未知个 Resource&#x3D;gang 的原子组</span><br><span class="line">      for (long t &#x3D; curDeadline - plan.getStep(); t &gt;&#x3D; curDeadline - dur</span><br><span class="line">          &amp;&amp; maxGang &gt; 0; t &#x3D; t - plan.getStep()) &#123;</span><br><span class="line"></span><br><span class="line">        &#x2F;&#x2F; 如果之前的预订存在的话,则删除此预订之前的分配(e.g. 更新预订时)</span><br><span class="line">        Resource oldResCap &#x3D; Resource.newInstance(0, 0);</span><br><span class="line">        if (oldResAllocation !&#x3D; null) &#123;</span><br><span class="line">          oldResCap &#x3D; oldResAllocation.getResourcesAtTime(t);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">	&#x2F;&#x2F; 计算当前时间点的净可用资源</span><br><span class="line">        Resource netAvailableRes &#x3D; Resources.clone(totalCapacity);</span><br><span class="line">        Resources.addTo(netAvailableRes, oldResCap);</span><br><span class="line">        &#x2F;&#x2F; Plan(reservable queue), 最靠近 t 时刻的累计容量</span><br><span class="line">        Resources.subtractFrom(netAvailableRes,</span><br><span class="line">            plan.getTotalCommittedResources(t)); </span><br><span class="line">        &#x2F;&#x2F;当前预订, 最靠近 t 时刻的累计容量</span><br><span class="line">        Resources.subtractFrom(netAvailableRes,</span><br><span class="line">            tempAssigned.getCapacityAtTime(t));</span><br><span class="line">        </span><br><span class="line">        &#x2F;&#x2F;计算当前时刻能满足的最大数量的 gang</span><br><span class="line">        curMaxGang &#x3D;</span><br><span class="line">            (int) Math.floor(Resources.divide(plan.getResourceCalculator(),</span><br><span class="line">                totalCapacity, netAvailableRes, gang));</span><br><span class="line"></span><br><span class="line">        &#x2F;&#x2F; min&#123;需求的 gang 数量,剩余资源能支撑的 gang 数量&#125;</span><br><span class="line">        curMaxGang &#x3D; Math.min(gangsToPlace, curMaxGang);</span><br><span class="line">	&#x2F;&#x2F; 记住当前尝试的 duration 内,最小数量的 gang 点(即 队列+reservation 占用资源量最多的点)，作为下次尝试的右边界</span><br><span class="line">        if (curMaxGang &lt;&#x3D; maxGang) &#123;</span><br><span class="line">          maxGang &#x3D; curMaxGang;</span><br><span class="line">          &#x2F;&#x2F;资源最紧俏的时间点。当资源充裕时,放置尽可能多的 gang,也会成为当前最紧俏的时间点，作为下次放置的右边界    </span><br><span class="line">          minPoint &#x3D; t;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      &#x2F;&#x2F; if we were able to place any gang, record this, and decrement</span><br><span class="line">      &#x2F;&#x2F; gangsToPlace maxGang&#x3D;0:没资源了 时间:范围不够了</span><br><span class="line">      &#x2F;&#x2F; 退出上一个循环过程有两种情况: </span><br><span class="line">      &#x2F;&#x2F; 1.  maxGang&#x3D;0,这个 duration 内有一个时间点 净剩余资源不足以放下一个 gang,那么整个 duration 都不能用了</span><br><span class="line">      &#x2F;&#x2F; 2. t&lt;&#x3D;curDeadline - dur 整个 duration 已经遍历完了。此时 maxGang &gt; 0</span><br><span class="line">      &#x2F;&#x2F; 以上退出都有可能,所以需要中间变量 maxGang来做判断。</span><br><span class="line">      if (maxGang &gt; 0) &#123;</span><br><span class="line">      </span><br><span class="line">      &#x2F;&#x2F; 能在[curDeadline-duration,curDeadline) 内放置下 maxGang 个gang，即 concurrency * maxGang 个 container</span><br><span class="line">        gangsToPlace -&#x3D; maxGang;</span><br><span class="line">        ReservationInterval reservationInt &#x3D;</span><br><span class="line">            new ReservationInterval(curDeadline - dur, curDeadline);</span><br><span class="line">        ReservationRequest reservationRes &#x3D;</span><br><span class="line">            ReservationRequest.newInstance(rr.getCapability(),</span><br><span class="line">                rr.getConcurrency() * maxGang, rr.getConcurrency(),</span><br><span class="line">                rr.getDuration());</span><br><span class="line">        &#x2F;&#x2F; 记住已占用的空间。后续贴出源码</span><br><span class="line">        &#x2F;&#x2F; reservable queue 对应的 Plan 暂时是只读的，除非能将整个 ReservationRequests 放入到计划中。</span><br><span class="line">        tempAssigned.addInterval(reservationInt, reservationRes);</span><br><span class="line">        allocationRequests.put(reservationInt, reservationRes);</span><br><span class="line">      &#125;</span><br><span class="line">      &#x2F;&#x2F; 设置下次放置 gang 的右边界。右边界向右无法再安置一个 gang(如上逻辑所述),尝试在右边界向左放置新的 gang</span><br><span class="line">      curDeadline &#x3D; minPoint;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    if (gangsToPlace &#x3D;&#x3D; 0) &#123;</span><br><span class="line">     &#x2F;&#x2F; 放置了所有的 gang </span><br><span class="line">      return allocationRequests;</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      &#x2F;&#x2F; 不能为当前 ReservationRequest(RR) 在时间&#x2F;容量&#x2F;并发 限制上放置所有的 gang。</span><br><span class="line">      &#x2F;&#x2F; 此次 RR放置失败,如果不是 R_ANY 的话，可以终止整个 预订请求了。</span><br><span class="line">      for (Map.Entry&lt;ReservationInterval, ReservationRequest&gt; tempAllocation :</span><br><span class="line">        allocationRequests.entrySet()) &#123;</span><br><span class="line">        &#x2F;&#x2F; 清理之前的中间数据。后续贴出源码</span><br><span class="line">        tempAssigned.removeInterval(tempAllocation.getKey(),</span><br><span class="line">            tempAllocation.getValue());</span><br><span class="line">      &#125;</span><br><span class="line">      return null;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>Plan 中使用 RLESparseResourceAllocation(以 TreeMap 为核心的稀疏数据结构)保存了当前已生效所有Reservation的累积&lt;时间-资源&gt;状态变化图，通过汇总所有 Reservation 的 RR 中每个分配的时间段(startTime,endTime)和资源量 最终得到了 Plan 随时间变化的已分配资源量。对每个 ReservationSubmissionRequest 请求来说 ，在尝试分配所有 RR 的时候，也使用RLESparseResourceAllocation 来保存临时分配好 RR 累积&lt;时间-资源&gt;状态变化图。  </p>
+<p>[RLESparseResourceAllocation.java]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br></pre></td><td class="code"><pre><span class="line">private TreeMap&lt;Long, Resource&gt; cumulativeCapacity &#x3D; new TreeMap&lt;Long, Resource&gt;();</span><br><span class="line">&#x2F;&#x2F;向 RLESparseResourcAllocation 中增加一个 &lt;时间范围-容量&gt; 的预订</span><br><span class="line">public boolean addInterval(ReservationInterval reservationInterval,</span><br><span class="line">      ReservationRequest capacity) &#123;</span><br><span class="line">    Resource totCap &#x3D;</span><br><span class="line">        Resources.multiply(capacity.getCapability(),</span><br><span class="line">            (float) capacity.getNumContainers());</span><br><span class="line">    if (totCap.equals(ZERO_RESOURCE)) &#123;</span><br><span class="line">      return true;</span><br><span class="line">    &#125;</span><br><span class="line">    writeLock.lock();</span><br><span class="line">    try &#123;</span><br><span class="line">      long startKey &#x3D; reservationInterval.getStartTime();</span><br><span class="line">      long endKey &#x3D; reservationInterval.getEndTime();</span><br><span class="line">      &#x2F;&#x2F;截取 (?,endKey)之间 一段 TreeMap</span><br><span class="line">      NavigableMap&lt;Long, Resource&gt; ticks &#x3D;</span><br><span class="line">          cumulativeCapacity.headMap(endKey, false);</span><br><span class="line">      if (ticks !&#x3D; null &amp;&amp; !ticks.isEmpty()) &#123;</span><br><span class="line">        Resource updatedCapacity &#x3D; Resource.newInstance(0, 0);</span><br><span class="line">        &#x2F;&#x2F; 找到时间上小于等于 startKey 的最大 key 的键值对</span><br><span class="line">        Entry&lt;Long, Resource&gt; lowEntry &#x3D; ticks.floorEntry(startKey);</span><br><span class="line">        if (lowEntry &#x3D;&#x3D; null) &#123;</span><br><span class="line">	   &#x2F;&#x2F; 表明 startKey 即为 RLE 全局最小键(最早)</span><br><span class="line">          cumulativeCapacity.put(startKey, totCap);</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">          updatedCapacity &#x3D; Resources.add(lowEntry.getValue(), totCap);</span><br><span class="line">          if ((startKey &#x3D;&#x3D; lowEntry.getKey())</span><br><span class="line">              &amp;&amp; (isSameAsPrevious(lowEntry.getKey(), updatedCapacity))) &#123;</span><br><span class="line">             &#x2F;&#x2F; 通过 remove 达到合并区间的。</span><br><span class="line">             &#x2F;&#x2F; e.g. [t0,t1)为 2G, [t1,t2)为 1G;现在在 [t1,t3) 上分配了 1G,那么可以删除 t1 这个点 </span><br><span class="line">            cumulativeCapacity.remove(lowEntry.getKey());</span><br><span class="line">          &#125; else &#123;</span><br><span class="line">             &#x2F;&#x2F;新增 一个时间点的容量 记录</span><br><span class="line">            cumulativeCapacity.put(startKey, updatedCapacity);</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        &#x2F;&#x2F; [startKey,endKey)时间段内的所有已有记录都要增加 totCap 作为最终状态 </span><br><span class="line">        &#x2F;&#x2F; cumulativeCapacity 维护的是全局状态量,而不是增量或者单个 reservation 的数据</span><br><span class="line">        Set&lt;Entry&lt;Long, Resource&gt;&gt; overlapSet &#x3D;</span><br><span class="line">            ticks.tailMap(startKey, false).entrySet(); &#x2F;&#x2F;startKey 已经增加过了 </span><br><span class="line">        for (Entry&lt;Long, Resource&gt; entry : overlapSet) &#123;</span><br><span class="line">          updatedCapacity &#x3D; Resources.add(entry.getValue(), totCap);</span><br><span class="line">          entry.setValue(updatedCapacity);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">        cumulativeCapacity.put(startKey, totCap);</span><br><span class="line">      &#125;</span><br><span class="line">      Resource nextTick &#x3D; cumulativeCapacity.get(endKey);</span><br><span class="line">      if (nextTick !&#x3D; null) &#123;</span><br><span class="line">        if (isSameAsPrevious(endKey, nextTick)) &#123;</span><br><span class="line">        &#x2F;&#x2F; 合并 endKey</span><br><span class="line">          cumulativeCapacity.remove(endKey);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">	&#x2F;&#x2F; endKey 时还回资源,所以在 endKey 前面记录都加了 totCap,此处会减去  </span><br><span class="line">        cumulativeCapacity.put(endKey, Resources.subtract(cumulativeCapacity</span><br><span class="line">            .floorEntry(endKey).getValue(), totCap));</span><br><span class="line">      &#125;</span><br><span class="line">      return true;</span><br><span class="line">    &#125; finally &#123;</span><br><span class="line">      writeLock.unlock();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  &#x2F;&#x2F; 在 RLESparseResourcAllocation 中删除一个 &lt;时间范围-容量&gt; 的预订</span><br><span class="line">  public boolean removeInterval(ReservationInterval reservationInterval,</span><br><span class="line">      ReservationRequest capacity) &#123;</span><br><span class="line">    Resource totCap &#x3D;</span><br><span class="line">        Resources.multiply(capacity.getCapability(),</span><br><span class="line">            (float) capacity.getNumContainers());</span><br><span class="line">    if (totCap.equals(ZERO_RESOURCE)) &#123;</span><br><span class="line">      return true;</span><br><span class="line">    &#125;</span><br><span class="line">    writeLock.lock();</span><br><span class="line">    try &#123;</span><br><span class="line">      long startKey &#x3D; reservationInterval.getStartTime();</span><br><span class="line">      long endKey &#x3D; reservationInterval.getEndTime();</span><br><span class="line">      NavigableMap&lt;Long, Resource&gt; ticks &#x3D;</span><br><span class="line">          cumulativeCapacity.headMap(endKey, false);</span><br><span class="line">      &#x2F;&#x2F;取出[startKey,endKey)区间内的所有记录</span><br><span class="line">      SortedMap&lt;Long, Resource&gt; overlapSet &#x3D; ticks.tailMap(startKey);</span><br><span class="line">      if (overlapSet !&#x3D; null &amp;&amp; !overlapSet.isEmpty()) &#123;</span><br><span class="line">        Resource updatedCapacity &#x3D; Resource.newInstance(0, 0);</span><br><span class="line">        long currentKey &#x3D; -1;</span><br><span class="line">        for (Iterator&lt;Entry&lt;Long, Resource&gt;&gt; overlapEntries &#x3D;</span><br><span class="line">            overlapSet.entrySet().iterator(); overlapEntries.hasNext();) &#123;</span><br><span class="line">          Entry&lt;Long, Resource&gt; entry &#x3D; overlapEntries.next();</span><br><span class="line">          currentKey &#x3D; entry.getKey();</span><br><span class="line">          &#x2F;&#x2F; 在每个时间点的减去该预订已分配的资源量  </span><br><span class="line">          updatedCapacity &#x3D; Resources.subtract(entry.getValue(), totCap);</span><br><span class="line">          cumulativeCapacity.put(currentKey, updatedCapacity);</span><br><span class="line">        &#125;</span><br><span class="line">        &#x2F;&#x2F; 左右边界点存在性判断</span><br><span class="line">        Long firstKey &#x3D; overlapSet.firstKey();</span><br><span class="line">        if (isSameAsPrevious(firstKey, overlapSet.get(firstKey))) &#123;</span><br><span class="line">          cumulativeCapacity.remove(firstKey);</span><br><span class="line">        &#125;</span><br><span class="line">        if ((currentKey !&#x3D; -1) &amp;&amp; (isSameAsNext(currentKey, updatedCapacity))) &#123;</span><br><span class="line">          cumulativeCapacity.remove(cumulativeCapacity.higherKey(currentKey));</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      return true;</span><br><span class="line">    &#125; finally &#123;</span><br><span class="line">      writeLock.unlock();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>举个简单例子，为便于讨论:<br>1.容量方面:  reservable queue 有 &lt;2G,2core&gt;的 capacity，所有预订请求中 container 容量都是&lt;1G,1core&gt;，即 queue 最多有 2 个container<br>2.时间方面: 从 t0至 t5，时间单位是 PlanFollower 的时间步长 step(默认是 1s)。t0 为当前时刻<br>3.请求方面: 已有的 reservation 不讨论 arrival,deadline，只给出 ReservationSystem 给出的分配&lt;时间范围-容量&gt;<br>4.ReservationSystem 已有的预订如下  </p>
+<table>
+<thead>
+<tr>
+<th align="left">预订 Id</th>
+<th align="left">开始时间</th>
+<th align="left">结束时间</th>
+<th align="left">占用时间</th>
+<th align="left">总资源量</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">r0</td>
+<td align="left">t3</td>
+<td align="left">t4</td>
+<td align="left">1 个单位</td>
+<td align="left">1个 container</td>
+</tr>
+<tr>
+<td align="left">r1</td>
+<td align="left">t2</td>
+<td align="left">t3</td>
+<td align="left">1个单位</td>
+<td align="left">2个 container</td>
+</tr>
+<tr>
+<td align="left">r2</td>
+<td align="left">t1</td>
+<td align="left">t2</td>
+<td align="left">1个单位</td>
+<td align="left">1个 container</td>
+</tr>
+</tbody></table>
+<p>由此可以绘出 Plan 对应的 RLESparseResourceAllocation 中维护的累计&lt;时间-资源&gt;状态变化图  </p>
+<p><img src="/img/pictures/reservation/reservationSystem.png" alt="">  </p>
+<p>即: r2 在 t1 时刻拿到1 个 container,因此图中 t1 时刻已分配资源状态是 1 个 container。<br>      r2 在 t2 时刻释放 1 个 container,r1 拿到两个 2 个 container,因此 t2 时刻已分配资源状态是 2 个 container </p>
+<p> 假设 ReservationSystem接收到一个请求，ReservationDefinition定义的预订请求内容为：
+arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationRequest(RR)<br>　　capacity&lt;1G,1core&gt;,numContainer=2,concurrency=1,duration=2<br>ReservationRequestInterpreter=R_ALL</p>
+<p>来模拟一下GreedyRerservationAgent#placeSingleStage是如何尝试放置这一个 RR 的<br>初始值:gang=concurrency * capacity=&lt;1G,1core&gt;  gangsToPlace=numContainers/concurrency=2  maxGang=2  </p>
+<table>
+<thead>
+<tr>
+<th align="left">状态</th>
+<th align="left">循环开始前 maxGang</th>
+<th align="left">开始前 minPoint</th>
+<th align="left">开始前 curMaxGang</th>
+<th align="left">循环变量 t</th>
+<th align="left">净可用资源(队列容量-Plan 累计-当前预订累计)</th>
+<th align="left">最终curMaxGang</th>
+<th align="left">最终 maxGang</th>
+<th align="left">最终 minPoint</th>
+<th align="left">是否进行下次循环</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">第一次循环</td>
+<td align="left">2</td>
+<td align="left">t5</td>
+<td align="left">2</td>
+<td align="left">t4</td>
+<td align="left">2-0-0=2 contianer</td>
+<td align="left">2</td>
+<td align="left">2</td>
+<td align="left">t4</td>
+<td align="left">是</td>
+</tr>
+<tr>
+<td align="left">第二次次循环</td>
+<td align="left">2</td>
+<td align="left">t4</td>
+<td align="left">2</td>
+<td align="left">t3</td>
+<td align="left">2-1-0=1 contianer</td>
+<td align="left">1</td>
+<td align="left">1</td>
+<td align="left">t3</td>
+<td align="left">否,duration 超限退出</td>
+</tr>
+</tbody></table>
+<p>内层循环结束时，maxGang=1，即可以在[t3,t5)这个时间段放下 1 个 gang，在此为 1 个 container，外层循环将此分配封装成&lt;ReservationInterval,ReservationRequest&gt;加入到 当前预订累计分配的中间数据结构中(tmpAssigned:RLESparseResourceAllocation)。  </p>
+<p>此时: gangsToPlace=1,curDeadline=t3,进行下一次外层循环  </p>
+<table>
+<thead>
+<tr>
+<th align="left">状态</th>
+<th align="left">循环开始前 maxGang</th>
+<th align="left">开始前 minPoint</th>
+<th align="left">开始前 curMaxGang</th>
+<th align="left">循环变量 t</th>
+<th align="left">净可用资源(队列容量-Plan 累计-当前预订累计)</th>
+<th align="left">最终curMaxGang</th>
+<th align="left">最终 maxGang</th>
+<th align="left">最终 minPoint</th>
+<th align="left">是否进行下次循环</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">第一次循环</td>
+<td align="left">1</td>
+<td align="left">t3</td>
+<td align="left">1</td>
+<td align="left">t2</td>
+<td align="left">2-2-0=0 contianer</td>
+<td align="left">0</td>
+<td align="left">0</td>
+<td align="left">t2</td>
+<td align="left">否,maxGang=0退出</td>
+</tr>
+</tbody></table>
+<p>内层循环结束后，maxGang=0，不能在[t1,t3)时间段放置任何一个 gang。  </p>
+<p>此时: gangsToPlace=1,curDeadline=t2，进行下一次外层循环  </p>
+<table>
+<thead>
+<tr>
+<th align="left">状态</th>
+<th align="left">循环开始前 maxGang</th>
+<th align="left">开始前 minPoint</th>
+<th align="left">开始前 curMaxGang</th>
+<th align="left">循环变量 t</th>
+<th align="left">净可用资源(队列容量-Plan 累计-当前预订累计)</th>
+<th align="left">最终curMaxGang</th>
+<th align="left">最终 maxGang</th>
+<th align="left">最终 minPoint</th>
+<th align="left">是否进行下次循环</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">第一次循环</td>
+<td align="left">1</td>
+<td align="left">t2</td>
+<td align="left">1</td>
+<td align="left">t1</td>
+<td align="left">2-1-0=1 contianer</td>
+<td align="left">1</td>
+<td align="left">1</td>
+<td align="left">t1</td>
+<td align="left">是</td>
+</tr>
+<tr>
+<td align="left">第二次循环</td>
+<td align="left">1</td>
+<td align="left">t1</td>
+<td align="left">1</td>
+<td align="left">t0</td>
+<td align="left">2-0-0=2 contianer</td>
+<td align="left">1</td>
+<td align="left">1</td>
+<td align="left">t0</td>
+<td align="left">否,duration 超限退出</td>
+</tr>
+</tbody></table>
+<p>内层循环结束后，maxGang=1，即可以在[t0,t2)时间段放下一个 gang，即 1 个 container，外层循环将此分配封装好之后再次加入到 tmpAssigned 中。   </p>
+<p>此时: gangsToPlace=0终止了外层循环。
+得到的最终结论是: 在[t3,t5)时间段放下一个 container&lt;1G,1core&gt;,在[t0,t2)时间段放下一个 container&lt;1G,1core&gt;。该 RR 整体可以分配，满足组关系 R_ALL，即不考虑用户的情况可以分配该 RR。</p>
+<h3 id="step-3"><a href="#step-3" class="headerlink" title="step 3"></a>step 3</h3><p>SharingPolicy 提供了一种在预订请求上强制保证统计量的方法，决定接受或者拒绝预订。例如，CapacityOvertimePolicy允许强制保证用户可以在其所有预订中请求的瞬时最大容量，以及一段时期内对资源整体的限制，例如，用户所有的预订最多可以达到瞬时50％集群最大容量，但是在一天内，其平均值不能超过10％。(The SharingPolicy provides a way to enforce invariants on the reservation being accepted, potentially rejecting reservations. For example, the CapacityOvertimePolicy allows enforcement of both instantaneous max-capacity a user can request across all of his/her reservations and a limit on the integral of resources over a period of time, e.g., the user can reserve up to 50% of the cluster capacity instantanesouly, but in any 24h period of time he/she cannot exceed 10% average)  </p>
+<p>在 step 2中，ReservationSystem 尝试对预订请求分配时间和资源。若分配成功，则尝试将其加入到 Plan 中或是更新 Plan。    </p>
+<p>[GreedyReservationAgent.java] </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">private boolean computeAllocation(ReservationId reservationId, String user,</span><br><span class="line">      Plan plan, ReservationDefinition contract,</span><br><span class="line">      ReservationAllocation oldReservation) throws PlanningException,</span><br><span class="line">      ContractValidationException &#123;</span><br><span class="line">    LOG.info(&quot;placing the following ReservationRequest: &quot; + contract);</span><br><span class="line">    ......</span><br><span class="line">    ReservationAllocation capReservation &#x3D;</span><br><span class="line">        new InMemoryReservationAllocation(reservationId, contract, user,</span><br><span class="line">            plan.getQueueName(), firstStartTime,</span><br><span class="line">            findLatestTime(allocations.keySet()), allocations,</span><br><span class="line">            plan.getResourceCalculator(), plan.getMinimumAllocation());</span><br><span class="line">    if (oldReservation !&#x3D; null) &#123;</span><br><span class="line">     &#x2F;&#x2F; 更新</span><br><span class="line">      return plan.updateReservation(capReservation);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">    &#x2F;&#x2F; 新增</span><br><span class="line">      return plan.addReservation(capReservation);</span><br><span class="line">    &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>updateReservation 事务性更新 reservation:  先删除旧的reservation，再新增更新的 reservation(当次ReservationSubmissionRequest)。如果新增失败则再把旧的reservation 回滚。 
+所以两处的逻辑的核心在于 addReservation 和 removeReservation。  </p>
+<p>[InMemoryPlan.java]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br></pre></td><td class="code"><pre><span class="line">   &#x2F;&#x2F;按时间段索引 ReservationAllocation 信息  </span><br><span class="line">private TreeMap&lt;ReservationInterval, Set&lt;InMemoryReservationAllocation&gt;&gt; currentReservations &#x3D;</span><br><span class="line">     new TreeMap&lt;ReservationInterval, Set&lt;InMemoryReservationAllocation&gt;&gt;();</span><br><span class="line">  &#x2F;&#x2F; Plan 整体的&lt;时间-资源&gt;状态变化图</span><br><span class="line"> private RLESparseResourceAllocation rleSparseVector;</span><br><span class="line"> &#x2F;&#x2F; 细分用户的&lt;时间-资源&gt;状态变化图</span><br><span class="line"> private Map&lt;String, RLESparseResourceAllocation&gt; userResourceAlloc &#x3D;</span><br><span class="line">     new HashMap&lt;String, RLESparseResourceAllocation&gt;();</span><br><span class="line"> &#x2F;&#x2F; 按 reservationId 索引ReservationAllocation 信息</span><br><span class="line"> private Map&lt;ReservationId, InMemoryReservationAllocation&gt; reservationTable &#x3D;</span><br><span class="line">     new HashMap&lt;ReservationId, InMemoryReservationAllocation&gt;();</span><br><span class="line">     </span><br><span class="line">public boolean addReservation(ReservationAllocation reservation)</span><br><span class="line">     throws PlanningException &#123;</span><br><span class="line">   InMemoryReservationAllocation inMemReservation &#x3D;</span><br><span class="line">       (InMemoryReservationAllocation) reservation;</span><br><span class="line">   if (inMemReservation.getUser() &#x3D;&#x3D; null) &#123;</span><br><span class="line">     String errMsg &#x3D;</span><br><span class="line">         &quot;The specified Reservation with ID &quot;</span><br><span class="line">             + inMemReservation.getReservationId()</span><br><span class="line">             + &quot; is not mapped to any user&quot;;</span><br><span class="line">     LOG.error(errMsg);</span><br><span class="line">     throw new IllegalArgumentException(errMsg);</span><br><span class="line">   &#125;</span><br><span class="line">   writeLock.lock();</span><br><span class="line">   try &#123;</span><br><span class="line">     if (reservationTable.containsKey(inMemReservation.getReservationId())) &#123;</span><br><span class="line">       String errMsg &#x3D;</span><br><span class="line">           &quot;The specified Reservation with ID &quot;</span><br><span class="line">               + inMemReservation.getReservationId() + &quot; already exists&quot;;</span><br><span class="line">       LOG.error(errMsg);</span><br><span class="line">       throw new IllegalArgumentException(errMsg);</span><br><span class="line">     &#125;</span><br><span class="line">     &#x2F;&#x2F; 第一步: 使用 SharingPolicy 校验 Plan 能否接受该 reservation。后续解释</span><br><span class="line">     policy.validate(this, inMemReservation);</span><br><span class="line">     &#x2F;&#x2F; 第二步: 记录接受 reservation 的时间</span><br><span class="line">     reservation.setAcceptanceTimestamp(clock.getTime());</span><br><span class="line">     &#x2F;&#x2F; 第三步: 内存数据结构维护</span><br><span class="line">     ReservationInterval searchInterval &#x3D;</span><br><span class="line">         new ReservationInterval(inMemReservation.getStartTime(),</span><br><span class="line">             inMemReservation.getEndTime());</span><br><span class="line">     Set&lt;InMemoryReservationAllocation&gt; reservations &#x3D;</span><br><span class="line">         currentReservations.get(searchInterval);</span><br><span class="line">     if (reservations &#x3D;&#x3D; null) &#123;</span><br><span class="line">       reservations &#x3D; new HashSet&lt;InMemoryReservationAllocation&gt;();</span><br><span class="line">     &#125;</span><br><span class="line">     if (!reservations.add(inMemReservation)) &#123;</span><br><span class="line">       LOG.error(&quot;Unable to add reservation: &#123;&#125; to plan.&quot;,</span><br><span class="line">           inMemReservation.getReservationId());</span><br><span class="line">       return false;</span><br><span class="line">     &#125;</span><br><span class="line">     currentReservations.put(searchInterval, reservations);</span><br><span class="line">     reservationTable.put(inMemReservation.getReservationId(),</span><br><span class="line">         inMemReservation);</span><br><span class="line">     &#x2F;&#x2F; 第四步: 维护Plan 整体的&lt;时间-资源&gt;状态变化图;维护细分用户&lt;时间-资源&gt;状态变化图  </span><br><span class="line">     incrementAllocation(inMemReservation);</span><br><span class="line">     LOG.info(&quot;Sucessfully added reservation: &#123;&#125; to plan.&quot;,</span><br><span class="line">         inMemReservation.getReservationId());</span><br><span class="line">     return true;</span><br><span class="line">   &#125; finally &#123;</span><br><span class="line">     writeLock.unlock();</span><br><span class="line">   &#125;</span><br><span class="line"> </span><br><span class="line"> private boolean removeReservation(ReservationAllocation reservation) &#123;</span><br><span class="line">   assert (readWriteLock.isWriteLockedByCurrentThread());</span><br><span class="line">   ReservationInterval searchInterval &#x3D;</span><br><span class="line">       new ReservationInterval(reservation.getStartTime(),</span><br><span class="line">           reservation.getEndTime());</span><br><span class="line">   Set&lt;InMemoryReservationAllocation&gt; reservations &#x3D;</span><br><span class="line">       currentReservations.get(searchInterval);</span><br><span class="line">    &#x2F;&#x2F; Plan 成员变量维护的信息 维护</span><br><span class="line">   if (reservations !&#x3D; null) &#123;</span><br><span class="line">     if (!reservations.remove(reservation)) &#123;</span><br><span class="line">       LOG.error(&quot;Unable to remove reservation: &#123;&#125; from plan.&quot;,</span><br><span class="line">           reservation.getReservationId());</span><br><span class="line">       return false;</span><br><span class="line">     &#125;</span><br><span class="line">     if (reservations.isEmpty()) &#123;</span><br><span class="line">       currentReservations.remove(searchInterval);</span><br><span class="line">     &#125;</span><br><span class="line">   &#125; else &#123;</span><br><span class="line">     String errMsg &#x3D;</span><br><span class="line">         &quot;The specified Reservation with ID &quot; + reservation.getReservationId()</span><br><span class="line">             + &quot; does not exist in the plan&quot;;</span><br><span class="line">     LOG.error(errMsg);</span><br><span class="line">     throw new IllegalArgumentException(errMsg);</span><br><span class="line">   &#125;</span><br><span class="line">   reservationTable.remove(reservation.getReservationId());</span><br><span class="line">   &#x2F;&#x2F; 1.维护细分用户&lt;时间-资源&gt;状态变化图;维护Plan 整体&lt;时间-资源&gt;状态变化图  </span><br><span class="line">   decrementAllocation(reservation);</span><br><span class="line">   LOG.info(&quot;Sucessfully deleted reservation: &#123;&#125; in plan.&quot;,</span><br><span class="line">       reservation.getReservationId());</span><br><span class="line">   return true;</span><br><span class="line"> &#125;</span><br></pre></td></tr></table></figure>
+
+<p>Plan 在 addReservation 和 updateReservation 时都使用了 SharingPolicy 来校验用户资源使用是否违规。CapacityOverTimePolicy 是默认 SharingPolicy，主要校验两个方面资源使用是否违规：瞬时用量不超过 reservable queue capaciy 的 1%(默认);24h(默认)平均用量不超过reservable queue capacity 的 1%(默认)。上述的 1%和 24h 是源码内常量,无法用配置修改      </p>
+<p>[CapacityOverTimePolicy.java]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br></pre></td><td class="code"><pre><span class="line">public void validate(Plan plan, ReservationAllocation reservation)</span><br><span class="line">      throws PlanningException &#123;</span><br><span class="line">    ReservationAllocation oldReservation &#x3D;</span><br><span class="line">        plan.getReservationById(reservation.getReservationId());</span><br><span class="line">    if (oldReservation !&#x3D; null</span><br><span class="line">        &amp;&amp; !oldReservation.getUser().equals(reservation.getUser())) &#123;</span><br><span class="line">      throw new MismatchedUserException(</span><br><span class="line">          &quot;Updating an existing reservation with mismatched user:&quot;</span><br><span class="line">              + oldReservation.getUser() + &quot; !&#x3D; &quot; + reservation.getUser());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    long startTime &#x3D; reservation.getStartTime();</span><br><span class="line">    long endTime &#x3D; reservation.getEndTime();</span><br><span class="line">    long step &#x3D; plan.getStep();</span><br><span class="line">    &#x2F;&#x2F; reservable queue capacity </span><br><span class="line">    Resource planTotalCapacity &#x3D; plan.getTotalCapacity();</span><br><span class="line">    &#x2F;&#x2F; 最大瞬时容量和最大平均容量	</span><br><span class="line">    Resource maxAvgRes &#x3D; Resources.multiply(planTotalCapacity, maxAvg);</span><br><span class="line">    Resource maxInsRes &#x3D; Resources.multiply(planTotalCapacity, maxInst);</span><br><span class="line">    	</span><br><span class="line">    IntegralResource runningTot &#x3D; new IntegralResource(0L, 0L);</span><br><span class="line">    &#x2F;&#x2F; 平均(乘法,即积分面积)容量限制</span><br><span class="line">    IntegralResource maxAllowed &#x3D; new IntegralResource(maxAvgRes);</span><br><span class="line">    maxAllowed.multiplyBy(validWindow &#x2F; step);</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; 检查与该分配有重叠区域且长度为 validWindow(24h)的任何窗口,</span><br><span class="line">    &#x2F;&#x2F;提供给用户的资源是否超过瞬时容量和平均容量限制</span><br><span class="line">    for (long t &#x3D; startTime - validWindow; t &lt; endTime + validWindow; t +&#x3D; step) &#123;</span><br><span class="line"></span><br><span class="line">      Resource currExistingAllocTot &#x3D; plan.getTotalCommittedResources(t);</span><br><span class="line">      Resource currExistingAllocForUser &#x3D;</span><br><span class="line">          plan.getConsumptionForUser(reservation.getUser(), t);</span><br><span class="line">      Resource currNewAlloc &#x3D; reservation.getResourcesAtTime(t);</span><br><span class="line">      Resource currOldAlloc &#x3D; Resources.none();</span><br><span class="line">      if (oldReservation !&#x3D; null) &#123;</span><br><span class="line">        currOldAlloc &#x3D; oldReservation.getResourcesAtTime(t);</span><br><span class="line">      &#125;</span><br><span class="line">      &#x2F;&#x2F; 所有用户累计 reservation 不能超过 reservable queue  capacity</span><br><span class="line">      Resource inst &#x3D;</span><br><span class="line">          Resources.subtract(Resources.add(currExistingAllocTot, currNewAlloc),</span><br><span class="line">              currOldAlloc);</span><br><span class="line">      if (Resources.greaterThan(plan.getResourceCalculator(),</span><br><span class="line">          planTotalCapacity, inst, planTotalCapacity)) &#123;</span><br><span class="line">        throw new ResourceOverCommitException(&quot; Resources at time &quot; + t</span><br><span class="line">            + &quot; would be overcommitted (&quot; + inst + &quot; over &quot;</span><br><span class="line">            + plan.getTotalCapacity() + &quot;) by accepting reservation: &quot;</span><br><span class="line">            + reservation.getReservationId());</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      &#x2F;&#x2F; 细分用户 容量不能超过 瞬时容量限制</span><br><span class="line">      if (Resources.greaterThan(plan.getResourceCalculator(),</span><br><span class="line">          planTotalCapacity, Resources.subtract(</span><br><span class="line">              Resources.add(currExistingAllocForUser, currNewAlloc),</span><br><span class="line">              currOldAlloc), maxInsRes)) &#123;</span><br><span class="line">        throw new PlanningQuotaException(&quot;Instantaneous quota capacity &quot;</span><br><span class="line">            + maxInst + &quot; would be passed at time &quot; + t</span><br><span class="line">            + &quot; by accepting reservation: &quot; + reservation.getReservationId());</span><br><span class="line">      &#125;</span><br><span class="line">      </span><br><span class="line">      &#x2F;&#x2F; 相当于增加了 (用户分配容量[已有的+当前reservation更新后的-当前reservation更新前的]) * (一个时间步长)的面积</span><br><span class="line">      &#x2F;&#x2F; 当前reservation更新前的 实际上在 已有的 之中,所以需要减去</span><br><span class="line">      runningTot.add(currExistingAllocForUser);</span><br><span class="line">      runningTot.add(currNewAlloc);</span><br><span class="line">      runningTot.subtract(currOldAlloc);</span><br><span class="line">	</span><br><span class="line">      &#x2F;&#x2F; 老化掉一个24h窗口之前的那个时间点的面积</span><br><span class="line">      if (t &gt; startTime) &#123;</span><br><span class="line">        Resource pastOldAlloc &#x3D;</span><br><span class="line">            plan.getConsumptionForUser(reservation.getUser(), t - validWindow);</span><br><span class="line">        Resource pastNewAlloc &#x3D; reservation.getResourcesAtTime(t - validWindow);</span><br><span class="line">        runningTot.subtract(pastOldAlloc);</span><br><span class="line">        runningTot.subtract(pastNewAlloc);</span><br><span class="line">      &#125;</span><br><span class="line">      if (maxAllowed.compareTo(runningTot) &lt; 0) &#123;</span><br><span class="line">        throw new PlanningQuotaException(</span><br><span class="line">            &quot;Integral (avg over time) quota capacity &quot; + maxAvg</span><br><span class="line">                + &quot; over a window of &quot; + validWindow &#x2F; 1000 + &quot; seconds, &quot;</span><br><span class="line">                + &quot; would be passed at time &quot; + t + &quot;(&quot; + new Date(t)</span><br><span class="line">                + &quot;) by accepting reservation: &quot;</span><br><span class="line">                + reservation.getReservationId());</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>上述 CapacityOverTimePolicy 用积分面积的方式判断 是否超过平均容量限制的方式，很容易和 RLESparseResourceAllocation 混淆。  RLESparseResourceAllocation 存储的是&lt;时间点-资源&gt;的状态量,是累积状态量不是增量。而积分面积用的是 RLESparseResourceAllocation 绘成的状态图算的积分面积，每向后移动一个时间步长则增加 (RLE 那个时间点资源量) * (一个时间步长) 的积分面积，并减去(RLE 24h前那个时间点资源量) * (一个时间步长)的积分面积。从而达到随着时间增加，积分面积始终是 RLESparseResourceAllocation 图中 [now-24h,now]这个区间的面积，然后和(平均资源限制容量) * (24h) 来比较。很巧妙，第一次见定积分可以在程序中这么用           </p>
+<h3 id="step-4"><a href="#step-4" class="headerlink" title="step 4"></a>step 4</h3><p>成功验证后，ReservationSystem 会向用户返回一个ReservationId 作为票据
+参考 “step 1” 的接口定义和 “step 2” ReservationAgent 分配成功后的处理  </p>
+<h3 id="step-5"><a href="#step-5" class="headerlink" title="step 5"></a>step 5</h3><p>PlanFollower(线程周期调度)通过动态创建/调整/销毁队列将计划的状态发布到调度程序   </p>
+<p>PlanFollower(Runnable) 随 ResourceManager 初始化时创建的 ReservationSystem(服务) 初始化而初始化 启动而启动，调用栈如下  </p>
+<p>-&gt;ResourceManager$RMActiveServices#serviceInit<br>　　-&gt;ResourceManager#createReservationSystem<br>　　　　-&gt;AbstractReservationSystem#serviceInit<br>　　　　　　-&gt;AbstractReservationSystem#createPlanFollower  </p>
+<p>[AbstractReservationSystem.java]　</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">public void serviceInit(Configuration conf) throws Exception &#123;</span><br><span class="line">  Configuration configuration &#x3D; new Configuration(conf);</span><br><span class="line">  &#x2F;&#x2F; 第一步: 初始化所有的 reservable queue 。</span><br><span class="line">  &#x2F;&#x2F; 指定 SharingPolicy,Planner,capacity,planstep...</span><br><span class="line">  reinitialize(configuration, rmContext);</span><br><span class="line">  &#x2F;&#x2F; 第二步: 创建 PlanFollower。加载类:CS 调度器对应 CapacitySchedulerPlanFollower...</span><br><span class="line">  planFollower &#x3D; createPlanFollower();</span><br><span class="line">  if (planFollower !&#x3D; null) &#123;</span><br><span class="line">    &#x2F;&#x2F; 第三步:初始化 PlanFollower </span><br><span class="line">    planFollower.init(clock, scheduler, plans.values());</span><br><span class="line">  &#125;</span><br><span class="line">  super.serviceInit(conf);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">public void serviceStart() throws Exception &#123;</span><br><span class="line">  if (planFollower !&#x3D; null) &#123;</span><br><span class="line">    scheduledExecutorService &#x3D; new ScheduledThreadPoolExecutor(1);</span><br><span class="line">    &#x2F;&#x2F;定时调度,调度周期是 planStepSize(默认1s)</span><br><span class="line">    scheduledExecutorService.scheduleWithFixedDelay(planFollower, 0L,</span><br><span class="line">        planStepSize, TimeUnit.MILLISECONDS);</span><br><span class="line">  &#125;</span><br><span class="line">  super.serviceStart();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>PlanFollower的核心逻辑在 AbstractSchedulerPlanFollower，用于 PlanFollower 与常规调度器同步预订分配的信息，下有 CapacitySchedulerPlanFollower 和 FairCapacityPlanFollower 两个子类。  </p>
+<p>[AbstractSchedulerPlanFollower.java] </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br></pre></td><td class="code"><pre><span class="line">@Override</span><br><span class="line">  public synchronized void run() &#123;</span><br><span class="line">    for (Plan plan : plans) &#123;</span><br><span class="line">      synchronizePlan(plan);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">@Override</span><br><span class="line">  public synchronized void synchronizePlan(Plan plan) &#123;</span><br><span class="line">     String planQueueName &#x3D; plan.getQueueName();</span><br><span class="line">    if (LOG.isDebugEnabled()) &#123;</span><br><span class="line">      LOG.debug(&quot;Running plan follower edit policy for plan: &quot; + planQueueName);</span><br><span class="line">    &#125;</span><br><span class="line">    long step &#x3D; plan.getStep();</span><br><span class="line">    long now &#x3D; clock.getTime();</span><br><span class="line">    if (now % step !&#x3D; 0) &#123;</span><br><span class="line">      now +&#x3D; step - (now % step);</span><br><span class="line">    &#125;</span><br><span class="line">    Queue planQueue &#x3D; getPlanQueue(planQueueName);</span><br><span class="line">    if (planQueue &#x3D;&#x3D; null) return;</span><br><span class="line">    </span><br><span class="line">    Resource clusterResources &#x3D; scheduler.getClusterResource();</span><br><span class="line">    &#x2F;&#x2F; plan 对应的 reservable queue 的容量</span><br><span class="line">    Resource planResources &#x3D; getPlanResources(plan, planQueue,</span><br><span class="line">        clusterResources);</span><br><span class="line">    &#x2F;&#x2F; 当前正在生效的预订(当前时间介于 startTime 和 endTime 之间的所有 Reservation) </span><br><span class="line">    Set&lt;ReservationAllocation&gt; currentReservations &#x3D;</span><br><span class="line">        plan.getReservationsAtTime(now);</span><br><span class="line">    &#x2F;&#x2F; 当前正在生效的 reservationId 集合</span><br><span class="line">    Set&lt;String&gt; curReservationNames &#x3D; new HashSet&lt;String&gt;();</span><br><span class="line">    &#x2F;&#x2F; 当前正在生效预订的 resource</span><br><span class="line">    Resource reservedResources &#x3D; Resource.newInstance(0, 0);</span><br><span class="line">    &#x2F;&#x2F; 当前正在生效的 reservation;</span><br><span class="line">    int numRes &#x3D; getReservedResources(now, currentReservations,</span><br><span class="line">        curReservationNames, reservedResources);</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; 创建 reservable queue 的默认队列: xxx-default</span><br><span class="line">    String defReservationId &#x3D; getReservationIdFromQueueName(planQueueName) +</span><br><span class="line">        ReservationConstants.DEFAULT_QUEUE_SUFFIX;</span><br><span class="line">    String defReservationQueue &#x3D; getReservationQueueName(planQueueName,</span><br><span class="line">        defReservationId);</span><br><span class="line">    createDefaultReservationQueue(planQueueName, planQueue,</span><br><span class="line">        defReservationId);</span><br><span class="line">    curReservationNames.add(defReservationId);</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; 第一步: 若正在生效的预约资源量大于队列容量，则删除晚接受的部分预约(accept_time)</span><br><span class="line">    &#x2F;&#x2F; 如果专用于预订资源的队列骤减(或配置或节点宕机),通过调用 Planner 来删除部分已有预约</span><br><span class="line">    if (arePlanResourcesLessThanReservations(clusterResources, planResources,</span><br><span class="line">        reservedResources)) &#123;</span><br><span class="line">      try &#123;</span><br><span class="line">        plan.getReplanner().plan(plan, null);</span><br><span class="line">      &#125; catch (PlanningException e) &#123;</span><br><span class="line">        LOG.warn(&quot;Exception while trying to replan: &#123;&#125;&quot;, planQueueName, e);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    &#x2F;&#x2F; 第二步: 标记当前预约中，哪些旧的预约需要过期删除，哪些新的预约需要创建队列  </span><br><span class="line">    List&lt;? extends Queue&gt; resQueues &#x3D; getChildReservationQueues(planQueue);</span><br><span class="line">    Set&lt;String&gt; expired &#x3D; new HashSet&lt;String&gt;();</span><br><span class="line">    for (Queue resQueue : resQueues) &#123;</span><br><span class="line">      String resQueueName &#x3D; resQueue.getQueueName();</span><br><span class="line">      String reservationId &#x3D; getReservationIdFromQueueName(resQueueName);</span><br><span class="line">      if (curReservationNames.contains(reservationId)) &#123;</span><br><span class="line">        &#x2F;&#x2F; 当前活跃的预订包含此此预约，因此不用为它创建对应的队列</span><br><span class="line">        curReservationNames.remove(reservationId);</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">	&#x2F;&#x2F; 预约已经结束，准备清除</span><br><span class="line">        expired.add(reservationId);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 第三步: 清除过期预约。 getMoveOnExpiry 默认为 true</span><br><span class="line">    cleanupExpiredQueues(planQueueName, plan.getMoveOnExpiry(), expired,</span><br><span class="line">        defReservationQueue);</span><br><span class="line"></span><br><span class="line">    float totalAssignedCapacity &#x3D; 0f;</span><br><span class="line">    if (currentReservations !&#x3D; null) &#123;</span><br><span class="line">      &#x2F;&#x2F; 释放默认队列中的所有多余容量  </span><br><span class="line">      try &#123;</span><br><span class="line">        setQueueEntitlement(planQueueName, defReservationQueue, 0f, 1.0f);</span><br><span class="line">      &#125; catch (YarnException e) &#123;</span><br><span class="line">        LOG.warn(</span><br><span class="line">            &quot;Exception while trying to release default queue capacity for plan: &#123;&#125;&quot;,</span><br><span class="line">            planQueueName, e);</span><br><span class="line">      &#125;</span><br><span class="line">       &#x2F;&#x2F; 第四步: 增加新的预约或更新已有的预约 对应的队列配额</span><br><span class="line">       &#x2F;&#x2F; 4.1 首先按照(当前时间待分配的容量 - 已有的容量)从小到大(从负到正)的方式排序一次调整 capacity。</span><br><span class="line">       &#x2F;&#x2F; 这种排序方式用以避免分配过程中瞬时容量超出 100%的 capacity(猜测可能是为了减少干扰并发预订和抢占介入)</span><br><span class="line">      List&lt;ReservationAllocation&gt; sortedAllocations &#x3D;</span><br><span class="line">          sortByDelta(</span><br><span class="line">              new ArrayList&lt;ReservationAllocation&gt;(currentReservations), now,</span><br><span class="line">              plan);</span><br><span class="line">      &#x2F;&#x2F; 4.2 为每个队列设置或更新 capacity</span><br><span class="line">      for (ReservationAllocation res : sortedAllocations) &#123;</span><br><span class="line">        String currResId &#x3D; res.getReservationId().toString();</span><br><span class="line">        if (curReservationNames.contains(currResId)) &#123;</span><br><span class="line">          &#x2F;&#x2F; 每个reservationId 对应着常规调度器中 PlanQueue 下的一个 ReservationQueue</span><br><span class="line">          addReservationQueue(planQueueName, planQueue, currResId);</span><br><span class="line">        &#125;</span><br><span class="line">        &#x2F;&#x2F; 当前生效的 ResourceAllocation 需要(或RS已分配给Reservation)的 capacity</span><br><span class="line">        Resource capToAssign &#x3D; res.getResourcesAtTime(now);</span><br><span class="line">        float targetCapacity &#x3D; 0f;</span><br><span class="line">        if (planResources.getMemory() &gt; 0</span><br><span class="line">            &amp;&amp; planResources.getVirtualCores() &gt; 0) &#123;</span><br><span class="line">          &#x2F;&#x2F; 绝对值式的容量相对 PlanQueue capacity 计算相对容量，capToAssign&#x2F;planResources</span><br><span class="line">          targetCapacity &#x3D;</span><br><span class="line">              calculateReservationToPlanRatio(clusterResources,</span><br><span class="line">                  planResources,</span><br><span class="line">                  capToAssign);</span><br><span class="line">        &#125;</span><br><span class="line">        if (LOG.isDebugEnabled()) &#123;</span><br><span class="line">          LOG.debug(</span><br><span class="line">              &quot;Assigning capacity of &#123;&#125; to queue &#123;&#125; with target capacity &#123;&#125;&quot;,</span><br><span class="line">              capToAssign, currResId, targetCapacity);</span><br><span class="line">        &#125;</span><br><span class="line">        &#x2F;&#x2F; set maxCapacity to 100% unless the job requires gang, in which</span><br><span class="line">        &#x2F;&#x2F; case we stick to capacity (as running early&#x2F;before is likely a</span><br><span class="line">        &#x2F;&#x2F; waste of resources)</span><br><span class="line">        &#x2F;&#x2F; 设置最大配额。感觉是无效代码，不明白为什么要设置最大配额 都为1不行吗，为什么按有无并发来设置最大配额  </span><br><span class="line">        float maxCapacity &#x3D; 1.0f;</span><br><span class="line">        if (res.containsGangs()) &#123;</span><br><span class="line">          maxCapacity &#x3D; targetCapacity;</span><br><span class="line">        &#125;</span><br><span class="line">        try &#123;</span><br><span class="line">         &#x2F;&#x2F; 设置capacity 和 maxCapacity</span><br><span class="line">          setQueueEntitlement(planQueueName, currResId, targetCapacity, maxCapacity);</span><br><span class="line">        &#125; catch (YarnException e) &#123;</span><br><span class="line">          LOG.warn(&quot;Exception while trying to size reservation for plan: &#123;&#125;&quot;,</span><br><span class="line">              currResId, planQueueName, e);</span><br><span class="line">        &#125;</span><br><span class="line">        totalAssignedCapacity +&#x3D; targetCapacity;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 第五步: 设置 default queue 的配额(PlanQueue 的剩余配额)</span><br><span class="line">    float defQCap &#x3D; 1.0f - totalAssignedCapacity;</span><br><span class="line">    if (LOG.isDebugEnabled()) &#123;</span><br><span class="line">      LOG.debug(&quot;PlanFollowerEditPolicyTask: total Plan Capacity: &#123;&#125; &quot;</span><br><span class="line">          + &quot;currReservation: &#123;&#125; default-queue capacity: &#123;&#125;&quot;, planResources,</span><br><span class="line">          numRes, defQCap);</span><br><span class="line">    &#125;</span><br><span class="line">    try &#123;</span><br><span class="line">      setQueueEntitlement(planQueueName, defReservationQueue, defQCap, 1.0f);</span><br><span class="line">    &#125; catch (YarnException e) &#123;</span><br><span class="line">      LOG.warn(</span><br><span class="line">          &quot;Exception while trying to reclaim default queue capacity for plan: &#123;&#125;&quot;,</span><br><span class="line">          planQueueName, e);</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 第六步: 清理过期的预订记录(now-endTime&gt;24h)</span><br><span class="line">    &#x2F;&#x2F; garbage collect finished reservations from plan</span><br><span class="line">    try &#123;</span><br><span class="line">      plan.archiveCompletedReservations(now);</span><br><span class="line">    &#125; catch (PlanningException e) &#123;</span><br><span class="line">      LOG.error(&quot;Exception in archiving completed reservations: &quot;, e);</span><br><span class="line">    &#125;</span><br><span class="line">    LOG.info(&quot;Finished iteration of plan follower edit policy for plan: &quot;</span><br><span class="line">        + planQueueName);</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; Extension: update plan with app states,</span><br><span class="line">    &#x2F;&#x2F; useful to support smart replanning</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>先看 第一步: 若正在生效的预约资源量大于队列容量，则删除晚接受的部分预约(accept_time)<br>可用于兼容集群/队列资源骤减的情况，策略是删除最晚接受的部分预约。<br>[SimpleCapacityReplanner.java] </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">public void plan(Plan plan, List&lt;ReservationDefinition&gt; contracts)</span><br><span class="line">      throws PlanningException &#123;</span><br><span class="line">    if (contracts !&#x3D; null) &#123;</span><br><span class="line">      throw new RuntimeException(</span><br><span class="line">          &quot;SimpleCapacityReplanner cannot handle new reservation contracts&quot;);</span><br><span class="line">    &#125;</span><br><span class="line">    ResourceCalculator resCalc &#x3D; plan.getResourceCalculator();</span><br><span class="line">    Resource totCap &#x3D; plan.getTotalCapacity();</span><br><span class="line">    long now &#x3D; clock.getTime();</span><br><span class="line">    &#x2F;&#x2F; lengthOfCheckZone&#x3D;1h </span><br><span class="line">    for (long t &#x3D; now; (t &lt; plan.getLastEndTime() &amp;&amp; t &lt; (now + lengthOfCheckZone)); t +&#x3D;</span><br><span class="line">        plan.getStep()) &#123;</span><br><span class="line">        &#x2F;&#x2F; 使用 Plan 所有预订的总资源量 - Plan 的 capacity 来检查是否超限</span><br><span class="line">      Resource excessCap &#x3D;</span><br><span class="line">          Resources.subtract(plan.getTotalCommittedResources(t), totCap);</span><br><span class="line">      if (Resources.greaterThan(resCalc, totCap, excessCap, ZERO_RESOURCE)) &#123;</span><br><span class="line">         &#x2F;&#x2F; 按照 ReservationAllocation.acceptedAt 做比较，最新接受的在前</span><br><span class="line">        Set&lt;ReservationAllocation&gt; curReservations &#x3D;</span><br><span class="line">            new TreeSet&lt;ReservationAllocation&gt;(plan.getReservationsAtTime(t));</span><br><span class="line">        for (Iterator&lt;ReservationAllocation&gt; resIter &#x3D;</span><br><span class="line">            curReservations.iterator(); resIter.hasNext()</span><br><span class="line">            &amp;&amp; Resources.greaterThan(resCalc, totCap, excessCap, ZERO_RESOURCE);) &#123;</span><br><span class="line">          ReservationAllocation reservation &#x3D; resIter.next();</span><br><span class="line">          &#x2F;&#x2F; 使用 deleteReservation 来调用 Plan.removeReservation 来删除预订。</span><br><span class="line">          &#x2F;&#x2F; removeReservation 的源码分析 见&quot;step 3&quot;</span><br><span class="line">          plan.deleteReservation(reservation.getReservationId());</span><br><span class="line">          excessCap &#x3D;</span><br><span class="line">              Resources.subtract(excessCap, reservation.getResourcesAtTime(t));</span><br><span class="line">          LOG.info(&quot;Removing reservation &quot; + reservation.getReservationId()</span><br><span class="line">              + &quot; to repair physical-resource constraints in the plan: &quot;</span><br><span class="line">              + plan.getQueueName());</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>第二步略，第三步: 清除过期预约。<br>[AbstractSchedulerPlanFollower.java]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">protected void cleanupExpiredQueues(String planQueueName,</span><br><span class="line">      boolean shouldMove, Set&lt;String&gt; toRemove, String defReservationQueue) &#123;</span><br><span class="line">    for (String expiredReservationId : toRemove) &#123;</span><br><span class="line">      try &#123;</span><br><span class="line">        String expiredReservation &#x3D; getReservationQueueName(planQueueName,</span><br><span class="line">            expiredReservationId);</span><br><span class="line">         &#x2F;&#x2F; 将过期预约对应的 ReservationQueue 的 capacity 和 maxCapacity 设置为 0 </span><br><span class="line">        setQueueEntitlement(planQueueName, expiredReservation, 0.0f, 0.0f);</span><br><span class="line">        &#x2F;&#x2F; 默认配置为 true。将其中的 APP 移动到同级的 default 队列中(xxx-default)。</span><br><span class="line">        if (shouldMove) &#123;</span><br><span class="line">          moveAppsInQueueSync(expiredReservation, defReservationQueue);</span><br><span class="line">        &#125;</span><br><span class="line">        if (scheduler.getAppsInQueue(expiredReservation).size() &gt; 0) &#123;</span><br><span class="line">        &#x2F;&#x2F; 移走所有已有 APP 的情况,还有新提交的。暂时保留</span><br><span class="line">          scheduler.killAllAppsInQueue(expiredReservation);</span><br><span class="line">          LOG.info(&quot;Killing applications in queue: &#123;&#125;&quot;, expiredReservation);</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">        &#x2F;&#x2F; 删除队列  </span><br><span class="line">          scheduler.removeQueue(expiredReservation);</span><br><span class="line">          LOG.info(&quot;Queue: &quot; + expiredReservation + &quot; removed&quot;);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; catch (YarnException e) &#123;</span><br><span class="line">        LOG.warn(&quot;Exception while trying to expire reservation: &#123;&#125;&quot;,</span><br><span class="line">            expiredReservationId, e);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>第四步 先调用 sortByDelta 方法使用 ReservationAllocationComparator 对所有正在生效的预订对应的 ReservationQueue 做排序，然后对所有预订通过 setQueueEntitlement 设置或修正 capacity 和 maxCapacity。<br>第五步 通过 setQueueEntitlement 设置 default queue 的 capacity 和 maxCapacity，占有所有剩余资源<br>[ReservationAllocationComparator.java]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">    @Override</span><br><span class="line">    public int compare(ReservationAllocation lhs, ReservationAllocation rhs) &#123;</span><br><span class="line">      Resource lhsRes &#x3D; getUnallocatedReservedResources(lhs);</span><br><span class="line">      Resource rhsRes &#x3D; getUnallocatedReservedResources(rhs);</span><br><span class="line">      &#x2F;&#x2F; 两个 Resource 先比内存再比虚拟核，小的在前。</span><br><span class="line">      return lhsRes.compareTo(rhsRes);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">private Resource getUnallocatedReservedResources(</span><br><span class="line">        ReservationAllocation reservation) &#123;</span><br><span class="line">      Resource resResource;</span><br><span class="line">      &#x2F;&#x2F; 查询常规调度器，获取现有 capacity</span><br><span class="line">      Resource reservationResource &#x3D; planFollower</span><br><span class="line">          .getReservationQueueResourceIfExists</span><br><span class="line">              (plan, reservation.getReservationId());</span><br><span class="line">      if (reservationResource !&#x3D; null) &#123;</span><br><span class="line">        resResource &#x3D;</span><br><span class="line">            Resources.subtract(</span><br><span class="line">            &#x2F;&#x2F; 当前时刻需要的 capacity。可能为负</span><br><span class="line">                reservation.getResourcesAtTime(now),</span><br><span class="line">                reservationResource);</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">        resResource &#x3D; reservation.getResourcesAtTime(now);</span><br><span class="line">      &#125;</span><br><span class="line">      return resResource;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>[AbstractSchedulerPlanFollower.java]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">protected void setQueueEntitlement(String planQueueName, String currResId,</span><br><span class="line">      float targetCapacity,</span><br><span class="line">      float maxCapacity) throws YarnException &#123;</span><br><span class="line">    String reservationQueueName &#x3D; getReservationQueueName(planQueueName,</span><br><span class="line">        currResId);</span><br><span class="line">    scheduler.setEntitlement(reservationQueueName, new QueueEntitlement(</span><br><span class="line">        targetCapacity, maxCapacity));</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>[CapacityScheduler.java]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">public synchronized void setEntitlement(String inQueue,</span><br><span class="line">      QueueEntitlement entitlement) throws SchedulerDynamicEditException,</span><br><span class="line">      YarnException &#123;</span><br><span class="line">    LeafQueue queue &#x3D; getAndCheckLeafQueue(inQueue);</span><br><span class="line">    ParentQueue parent &#x3D; (ParentQueue) queue.getParent();</span><br><span class="line">    if (!(queue instanceof ReservationQueue)) &#123;</span><br><span class="line">      throw new SchedulerDynamicEditException(&quot;Entitlement can not be&quot;</span><br><span class="line">          + &quot; modified dynamically since queue &quot; + inQueue</span><br><span class="line">          + &quot; is not a ReservationQueue&quot;);</span><br><span class="line">    &#125;</span><br><span class="line">    if (!(parent instanceof PlanQueue)) &#123;</span><br><span class="line">      throw new SchedulerDynamicEditException(&quot;The parent of ReservationQueue &quot;</span><br><span class="line">          + inQueue + &quot; must be an PlanQueue&quot;);</span><br><span class="line">    &#125;</span><br><span class="line">    ReservationQueue newQueue &#x3D; (ReservationQueue) queue;</span><br><span class="line">    float sumChilds &#x3D; ((PlanQueue) parent).sumOfChildCapacities();</span><br><span class="line">    &#x2F;&#x2F; 计算修改后, 所有同级队列的容量之和</span><br><span class="line">    float newChildCap &#x3D; sumChilds - queue.getCapacity() + entitlement.getCapacity();</span><br><span class="line"></span><br><span class="line">    if (newChildCap &gt;&#x3D; 0 &amp;&amp; newChildCap &lt; 1.0f + CSQueueUtils.EPSILON) &#123;</span><br><span class="line">      &#x2F;&#x2F; 设置前后的 capacity 和 maxCapacity 都一样则 不设置</span><br><span class="line">      if (Math.abs(entitlement.getCapacity() - queue.getCapacity()) &#x3D;&#x3D; 0</span><br><span class="line">          &amp;&amp; Math.abs(entitlement.getMaxCapacity() - queue.getMaximumCapacity()) &#x3D;&#x3D; 0) &#123;</span><br><span class="line">        return;</span><br><span class="line">      &#125;</span><br><span class="line">      &#x2F;&#x2F;设置 ReservationQueue 的 capacity 和 maxCapacity </span><br><span class="line">      newQueue.setEntitlement(entitlement);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      throw new SchedulerDynamicEditException(</span><br><span class="line">          &quot;Sum of child queues would exceed 100% for PlanQueue: &quot;</span><br><span class="line">              + parent.getQueueName());</span><br><span class="line">    &#125;</span><br><span class="line">    LOG.info(&quot;Set entitlement for ReservationQueue &quot; + inQueue + &quot;  to &quot;</span><br><span class="line">        + queue.getCapacity() + &quot; request was (&quot; + entitlement.getCapacity() + &quot;)&quot;);</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>[ReservationQueue.java]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">public synchronized void setEntitlement(QueueEntitlement entitlement)</span><br><span class="line">      throws SchedulerDynamicEditException &#123;</span><br><span class="line">    float capacity &#x3D; entitlement.getCapacity();</span><br><span class="line">    if (capacity &lt; 0 || capacity &gt; 1.0f) &#123;</span><br><span class="line">      throw new SchedulerDynamicEditException(</span><br><span class="line">          &quot;Capacity demand is not in the [0,1] range: &quot; + capacity);</span><br><span class="line">    &#125;</span><br><span class="line">    setCapacity(capacity);</span><br><span class="line">    setAbsoluteCapacity(getParent().getAbsoluteCapacity() * getCapacity());</span><br><span class="line">    setMaxCapacity(entitlement.getMaxCapacity());</span><br><span class="line">    if (LOG.isDebugEnabled()) &#123;</span><br><span class="line">      LOG.debug(&quot;successfully changed to &quot; + capacity + &quot; for queue &quot;</span><br><span class="line">          + this.getQueueName());</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>第六步: 清理过期的预订记录<br>[InMemoryPlan.java]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">public void archiveCompletedReservations(long tick) &#123;</span><br><span class="line">    LOG.debug(&quot;Running archival at time: &#123;&#125;&quot;, tick);</span><br><span class="line">    List&lt;InMemoryReservationAllocation&gt; expiredReservations &#x3D;</span><br><span class="line">        new ArrayList&lt;InMemoryReservationAllocation&gt;();</span><br><span class="line">    readLock.lock();</span><br><span class="line">    try &#123;</span><br><span class="line">    &#x2F;&#x2F; 删除过期的保留记录  </span><br><span class="line">      long archivalTime &#x3D; tick - policy.getValidWindow();</span><br><span class="line">      ReservationInterval searchInterval &#x3D;</span><br><span class="line">          new ReservationInterval(archivalTime, archivalTime);</span><br><span class="line">      SortedMap&lt;ReservationInterval, Set&lt;InMemoryReservationAllocation&gt;&gt; reservations &#x3D;</span><br><span class="line">          currentReservations.headMap(searchInterval, true);</span><br><span class="line">      if (!reservations.isEmpty()) &#123;</span><br><span class="line">        for (Set&lt;InMemoryReservationAllocation&gt; reservationEntries : reservations</span><br><span class="line">            .values()) &#123;</span><br><span class="line">          for (InMemoryReservationAllocation reservation : reservationEntries) &#123;</span><br><span class="line">            &#x2F;&#x2F; 结束时间早于当前时间24h </span><br><span class="line">            if (reservation.getEndTime() &lt;&#x3D; archivalTime) &#123;</span><br><span class="line">              expiredReservations.add(reservation);</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; finally &#123;</span><br><span class="line">      readLock.unlock();</span><br><span class="line">    &#125;</span><br><span class="line">    if (expiredReservations.isEmpty()) &#123;</span><br><span class="line">      return;</span><br><span class="line">    &#125;</span><br><span class="line">    writeLock.lock();</span><br><span class="line">    try &#123;</span><br><span class="line">      for (InMemoryReservationAllocation expiredReservation : expiredReservations) &#123;</span><br><span class="line">      &#x2F;&#x2F; Plan.removeReservation 源码分析见&quot;step 3&quot;,主要是内存数据结构的维护</span><br><span class="line">        removeReservation(expiredReservation);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; finally &#123;</span><br><span class="line">      writeLock.unlock();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>　　　　</p>
+<h3 id="step-6"><a href="#step-6" class="headerlink" title="step 6"></a>step 6</h3><p>用户可以在(多个)应用程序的 ApplicationSubmissionContext 中指定 ReservationId 提交到可预订的队列(PlanQueue,具有 reservable 属性的 LeafQueue)   </p>
+<p>参见 ApplicationSubmissionContext 的数据结构  </p>
+<h3 id="step-7"><a href="#step-7" class="headerlink" title="step 7"></a>step 7</h3><p>常规调度器将从创建的特殊队列中提供容器,以确保遵守资源预定。在预订的时间和资源限制下，用户的(多个)应用程序可以以容量/公平的方式共享资源   </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line">public void handle(SchedulerEvent event) &#123;</span><br><span class="line">    switch(event.getType()) &#123;</span><br><span class="line">    ......</span><br><span class="line">    case APP_ADDED:</span><br><span class="line">    &#123;</span><br><span class="line">      AppAddedSchedulerEvent appAddedEvent &#x3D; (AppAddedSchedulerEvent) event;</span><br><span class="line">      &#x2F;&#x2F; 解析 APP 提交的队列</span><br><span class="line">      String queueName &#x3D;</span><br><span class="line">          resolveReservationQueueName(appAddedEvent.getQueue(),</span><br><span class="line">              appAddedEvent.getApplicationId(),</span><br><span class="line">              appAddedEvent.getReservationID());</span><br><span class="line">      if (queueName !&#x3D; null) &#123;</span><br><span class="line">        if (!appAddedEvent.getIsAppRecovering()) &#123;</span><br><span class="line">          addApplication(appAddedEvent.getApplicationId(), queueName,</span><br><span class="line">              appAddedEvent.getUser());</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">          addApplicationOnRecovery(appAddedEvent.getApplicationId(), queueName,</span><br><span class="line">              appAddedEvent.getUser());</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    break;</span><br><span class="line">    ......</span><br><span class="line">    &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">private synchronized String resolveReservationQueueName(String queueName,</span><br><span class="line">      ApplicationId applicationId, ReservationId reservationID) &#123;</span><br><span class="line">    CSQueue queue &#x3D; getQueue(queueName);</span><br><span class="line">    if ((queue &#x3D;&#x3D; null) || !(queue instanceof PlanQueue)) &#123;</span><br><span class="line">      return queueName;</span><br><span class="line">    &#125;</span><br><span class="line">    if (reservationID !&#x3D; null) &#123;</span><br><span class="line">      String resQName &#x3D; reservationID.toString();</span><br><span class="line">      &#x2F;&#x2F; 根据 reservationId 获取对应的叶子队列</span><br><span class="line">      queue &#x3D; getQueue(resQName);</span><br><span class="line">      if (queue &#x3D;&#x3D; null) &#123;</span><br><span class="line">        String message &#x3D;</span><br><span class="line">            &quot;Application &quot;</span><br><span class="line">                + applicationId</span><br><span class="line">                + &quot; submitted to a reservation which is not yet currently active: &quot;</span><br><span class="line">                + resQName;</span><br><span class="line">        this.rmContext.getDispatcher().getEventHandler()</span><br><span class="line">            .handle(new RMAppEvent(applicationId,</span><br><span class="line">                RMAppEventType.APP_REJECTED, message));</span><br><span class="line">        return null;</span><br><span class="line">      &#125;</span><br><span class="line">      if (!queue.getParent().getQueueName().equals(queueName)) &#123;</span><br><span class="line">        String message &#x3D;</span><br><span class="line">            &quot;Application: &quot; + applicationId + &quot; submitted to a reservation &quot;</span><br><span class="line">                + resQName + &quot; which does not belong to the specified queue: &quot;</span><br><span class="line">                + queueName;</span><br><span class="line">        this.rmContext.getDispatcher().getEventHandler()</span><br><span class="line">            .handle(new RMAppEvent(applicationId,</span><br><span class="line">                RMAppEventType.APP_REJECTED, message));</span><br><span class="line">        return null;</span><br><span class="line">      &#125;</span><br><span class="line">     &#x2F;&#x2F; 使用 ReservationId 对应的 ReservationQueue 来运行任务, 调度容器....</span><br><span class="line">      queueName &#x3D; resQName;</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      &#x2F;&#x2F; 如果指定了 PlanQueue 但是没指定 reservationId, 会提交到 PlanQueue 的 default 队列执行</span><br><span class="line">      queueName &#x3D; queueName + ReservationConstants.DEFAULT_QUEUE_SUFFIX;</span><br><span class="line">    &#125;</span><br><span class="line">    return queueName;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="step-8"><a href="#step-8" class="headerlink" title="step 8"></a>step 8</h3><p>预订系统可以兼容容量下降的情况。包括拒绝之前接受最晚的预订兼容 reservable queue 的容量骤减，移动预订到 reservable queue 下的 default队列来兼容超时(预订到期但app 没结束)应用<br>参考”step 5”中 AbstractSchedulerPlanFollower#synchronizePlan 方法中对 plan.getReplanner().plan(plan, null) 的调用和cleanupExpiredQueues(planQueueName, plan.getMoveOnExpiry(), expired,
+        defReservationQueue)的逻辑  </p>
+<p>官网解释可能不实，原文如下:<br>The system includes mechanisms to adapt to drop in cluster capacity. This consists in replanning by “moving” the reservation if possible, or rejecting the smallest amount of previously accepted reservation (to ensure that other reservation will receive their full amount).</p>
+<p>但在 hadoop-2.7.3 和 hadoop-3.2.0的 trunk 分支上 AbstractSchedulerPlanFollower/Planner(只有 SimpleReplanner 实现类)逻辑没有改动，且无相应逻辑  </p>
+<h2 id="QA"><a href="#QA" class="headerlink" title="QA"></a>QA</h2><blockquote>
+</blockquote>
+<ol>
+<li>Q: reservable queue 和 leaf queue 区别<br> A: 其一，只有 leaf queue 才能被设置为 reservable queue，通过对 leaf queue 设置 yarn.scheduler.capacity.&lt;queue-path&gt;.reservable=true。其二，在资源管理的层级体系中 reservable queue 对应的数据结构是 PlanQueue extend ParentQueue。即实际上，reservable queue 是在 leaf queue上做了配置的 ParentQueue。  </li>
+<li>Q: PlanQueue 和 ReservationQueue 区别<br> A: PlanQueue 对应一个 reservable queue，ReservationQueue 对应一个 ReservationId，PlanQueue 下面可以创建任意个 ReservationQueue; PlanQueue 是 ParentQueue，ReservationQueue 是 LeafQueue。      </li>
+<li>Q: 在名称为 X 的 reservable queue 上预订了资源，reservationId=reservationId_001,提交APP 时 Queue 名字填什么？<br> A: Queue 名字填 X,且需要在 ApplicationSubmissionContext 中设置 reservationId。常规调度器会根据 reservationId 解析出对应的 ReservationQueue(名称与 ReservationId 相同)。  </li>
+<li>Q: 在1:00-2:00 预约了&lt;100G,10core&gt;的资源 30 分钟，但是在 1:00前或者 2:00后提交任务 会怎样?<br>A:  常规调度器会拒绝任务(APP_REJECT)。因为找不到 reservationId 对应的 ReservationQueue,早于1:00时队列还没创建,晚于2:00时队列被删除。最好在1:00提交，可能会有等待时间(RS 调度时从deadline 向 arrival 尝试分配)       </li>
+<li>Q: 任务运行在哪里?<br>A: 任务运行在与 reservationId 同名的 ReservationQueue 中,如果预约时间过去但是 APP 还没运行完成则默认移动 APP 到与 ReservationQueue 同级的 default 队列中  </li>
+<li>Q: 能不能把 reservable queue 当做 leaf queue 用? 每个任务都不指定 ReservationId。<br> A: 可以。提交到 reservable queue 但是不指定 ReservationId 的任务都会被移动到 reservable queue 下的 default 队列运行。</li>
+<li>Q: 提交到 reservable queue 中的 app 有的指定了 ReservationId,有的没指定。运行时有什么影响?<br> A: PlanQueue 优先为有 ReservationId 队列分配资源,其次再为 default 队列分配资源，即只能使用那些被预订后剩余的资源，在资源紧张时 default 队列无资源或被其他任意 ReservationQueue 抢占。(这是由 ReservationSystem 提供预订的逻辑决定的。1.不预约的资源不在ReservationSystem 管理下,请求预约时 ReservationSystem 会认为自身管理 PlanQueue 所有资源都能预约出去  2.为所有预约分配完资源之后剩下的才归属 default 队列所有)  </li>
+<li>Q: Spark On Yarn 如何使用 ReservationSystem?<br> A: 分两个阶段。第一,使用 Client-RM 协议提交 ReservationSubmissionRequest,预订资源并保存回执的 ReservationId。第二，在 Spark On Yarn 程序中指定 ReservationId 字段，但是此阶段 Spark On Yarn 提交程序尚不完善需要修改源代码。目前 Spark On Yarn 程序使用 createApplicationSubmissionContext 方法来封装 ApplicationSubmissionContext 时, 没有针对 ReservationId 的逻辑。如果有需求的话，可以通过 SparkConf 来传递 ReservationId 字符串,在createApplicationSubmissionContext做解析设置 。    <ol start="9">
+<li>Q: ReservationSystem 的适用场景<br>A: 1.资源紧张时需要保证重要生产任务运行,可以使用预订资源的方式 。ReservationSystem 在 PlanQueue 下创建 ReservationQueue，将预订需要的绝对值资源量转化 ReservationQueue 在当前时刻的capacity 和 maxCapacity，将任务在此队列中调度，本质上还是 LeafQueue。绝对资源量转化成百分比资源量擦掉了容器数量和大小，不修改开源抢占调度逻辑 不密集抢占抢占的情况下，不能解决大容器调度的问题。  </li>
+</ol>
+</li>
+</ol>
+<h2 id="配置预订系统"><a href="#配置预订系统" class="headerlink" title="配置预订系统"></a>配置预订系统</h2><p>目前可以在 yarn-site.xml 中配置开启ReservationSystem,可以在CapacityScheduler 及 FairScheduler中增加对预订的支持，方式是在capacity-scheduler.xml 或者 fair-scheduler.xml中的任何 LeafQueue的”reservable”属性标记为 true，然后该队列的配额就可以用于预订。即使没有预订资源，应用程序仍然可以被提交到该队列上，它们将以”best-effort”的模式运行在 预订资源中运行的作业 剩下的容量中。  </p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html</a><br><a href="https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us" target="_blank" rel="noopener">https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us</a><br><a href="http://gitbook.net/java/util/java_util_treemap.html" target="_blank" rel="noopener">http://gitbook.net/java/util/java_util_treemap.html</a>  </p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Yarn-2-7-3/" rel="tag"># Yarn 2.7.3</a>
+              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
+              <a href="/tags/Yarn-ReservationSystem/" rel="tag"># Yarn ReservationSystem</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019-10-05-Yarn%20PreemptionSystem/" rel="prev" title="Yarn PreemptionSystem">
+      <i class="fa fa-chevron-left"></i> Yarn PreemptionSystem
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019-11-12-Yarn%20User%20Headroom/" rel="next" title="Yarn User Headroom">
+      Yarn User Headroom <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#概述"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#工作流程"><span class="nav-number">2.</span> <span class="nav-text">工作流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#源码解析"><span class="nav-number">3.</span> <span class="nav-text">源码解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#涉及的类"><span class="nav-number">3.1.</span> <span class="nav-text">涉及的类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-0"><span class="nav-number">3.2.</span> <span class="nav-text">step 0</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-1"><span class="nav-number">3.3.</span> <span class="nav-text">step 1</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-2"><span class="nav-number">3.4.</span> <span class="nav-text">step 2</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-3"><span class="nav-number">3.5.</span> <span class="nav-text">step 3</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-4"><span class="nav-number">3.6.</span> <span class="nav-text">step 4</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-5"><span class="nav-number">3.7.</span> <span class="nav-text">step 5</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-6"><span class="nav-number">3.8.</span> <span class="nav-text">step 6</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-7"><span class="nav-number">3.9.</span> <span class="nav-text">step 7</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#step-8"><span class="nav-number">3.10.</span> <span class="nav-text">step 8</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#QA"><span class="nav-number">4.</span> <span class="nav-text">QA</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#配置预订系统"><span class="nav-number">5.</span> <span class="nav-text">配置预订系统</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考"><span class="nav-number">6.</span> <span class="nav-text">参考</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">List</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jiulong.zhu@gmail.com" title="E-Mail → mailto:jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">List</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong-zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2019-10-28-Yarn%20ReservationSystem/",
+            identifier: "2019-10-28-Yarn ReservationSystem/",
+            title: "Yarn ReservationSystem"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

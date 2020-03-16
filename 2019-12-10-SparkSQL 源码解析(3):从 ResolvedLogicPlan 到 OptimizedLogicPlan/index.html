@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="概述Parser 模块负责将 SQL 文本解析为 UnResolvedLogicPlan，Analyzer 模块负责将 UnResolvedLogicPlan 绑定解析为 ResolvedLogicPlan。Rule-Based Optimizer，简称 RBO 或 Optimizer 模块负责基于规则优化逻辑计划，主要思路是基于各类型规则对 ResolvedLogicPlan 进行优化达到减少每">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SparkSQL源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan&#x2F;index.html">
+<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:description" content="概述Parser 模块负责将 SQL 文本解析为 UnResolvedLogicPlan，Analyzer 模块负责将 UnResolvedLogicPlan 绑定解析为 ResolvedLogicPlan。Rule-Based Optimizer，简称 RBO 或 Optimizer 模块负责基于规则优化逻辑计划，主要思路是基于各类型规则对 ResolvedLogicPlan 进行优化达到减少每">
+<meta property="article:published_time" content="2019-12-09T16:00:00.000Z">
+<meta property="article:modified_time" content="2019-12-12T04:00:41.664Z">
+<meta property="article:author" content="List">
+<meta property="article:tag" content="源码解析">
+<meta property="article:tag" content="Spark 2.3.0">
+<meta property="article:tag" content="Spark SQL">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>SparkSQL源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan | List's Blog</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">List's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">李斯特</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          SparkSQL源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-12-10 00:00:00" itemprop="dateCreated datePublished" datetime="2019-12-10T00:00:00+08:00">2019-12-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-12-12 12:00:41" itemprop="dateModified" datetime="2019-12-12T12:00:41+08:00">2019-12-12</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-12-10-SparkSQL 源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>Parser 模块负责将 SQL 文本解析为 UnResolvedLogicPlan，Analyzer 模块负责将 UnResolvedLogicPlan 绑定解析为 ResolvedLogicPlan。Rule-Based Optimizer，简称 RBO 或 Optimizer 模块负责基于规则优化逻辑计划，主要思路是基于各类型规则对 ResolvedLogicPlan 进行优化达到减少每个逻辑计划树节点输入数据量或计算代价的目的，大名鼎鼎的列裁剪和谓词下推、常量折叠就是出自于 Optimizer 模块。      </p>
+<a id="more"></a>
+
+<h2 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h2><p>[QueryExecution.scala]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F; 第一步: 使用 CacheManager 替换逻辑计划为已解析过的逻辑计划</span><br><span class="line">lazy val withCachedData: LogicalPlan &#x3D; &#123;</span><br><span class="line">    assertAnalyzed()</span><br><span class="line">    assertSupported()</span><br><span class="line">    sparkSession.sharedState.cacheManager.useCachedData(analyzed)</span><br><span class="line">  &#125;</span><br><span class="line"> &#x2F;&#x2F; 第二步: 基于规则优化逻辑计划树</span><br><span class="line">  lazy val optimizedPlan: LogicalPlan &#x3D; sparkSession.sessionState.optimizer.execute(withCachedData)</span><br></pre></td></tr></table></figure>
+
+<h3 id="CacheManager"><a href="#CacheManager" class="headerlink" title="CacheManager"></a>CacheManager</h3><p>[CacheManager.scala]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">private val cachedData &#x3D; new java.util.LinkedList[CachedData]</span><br><span class="line"></span><br><span class="line">def useCachedData(plan: LogicalPlan): LogicalPlan &#x3D; &#123;</span><br><span class="line">    &#x2F;&#x2F; 先序遍历</span><br><span class="line">    val newPlan &#x3D; plan transformDown &#123;</span><br><span class="line">      case hint: ResolvedHint &#x3D;&gt; hint</span><br><span class="line">      case currentFragment &#x3D;&gt;</span><br><span class="line">        &#x2F;&#x2F; 检索 CacheManager</span><br><span class="line">        lookupCachedData(currentFragment)</span><br><span class="line">           &#x2F;&#x2F; 使用当前计划的输出字段替换原有的</span><br><span class="line">          .map(_.cachedRepresentation.withOutput(currentFragment.output))</span><br><span class="line">          .getOrElse(currentFragment)</span><br><span class="line">    &#125;</span><br><span class="line">    newPlan transformAllExpressions &#123;</span><br><span class="line">      &#x2F;&#x2F; 剥去子查询别名外壳</span><br><span class="line">      case s: SubqueryExpression &#x3D;&gt; s.withNewPlan(useCachedData(s.plan))</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line"> def lookupCachedData(plan: LogicalPlan): Option[CachedData] &#x3D; readLock &#123;</span><br><span class="line">    &#x2F;&#x2F; 遍历对比CacheManager 中是否存在和当前计划一致的  </span><br><span class="line">    cachedData.asScala.find(cd &#x3D;&gt; plan.sameResult(cd.plan))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>通常判断两个查询计划是否相同是很复杂的问题，因此可能实际相同也可以返回 false，但是实际不同一定不能返回 true。这种行为不会影响正确性，仅仅相当于弃用了 CacheManager，多做了一些重复处理而已。这种思想有点像 BloomFilter 的误判率: 函数判断在集合但是实际上可能不在，仅仅是多个 hash 函数得到的位置在 bitmap 中恰好非 0；返回不在集合时一定不在。<br>[QueryPlan.scala]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F; 将逻辑计划规范化之后再做比较</span><br><span class="line">final def sameResult(other: PlanType): Boolean &#x3D; this.canonicalized &#x3D;&#x3D; other.canonicalized</span><br><span class="line">&#x2F;&#x2F; 规范化 逻辑计划涉及的所有字段的 id(从 0 递增)。</span><br><span class="line">protected def doCanonicalize(): PlanType &#x3D; &#123;</span><br><span class="line">    val canonicalizedChildren &#x3D; children.map(_.canonicalized)</span><br><span class="line">    var id &#x3D; -1</span><br><span class="line">    mapExpressions &#123;</span><br><span class="line">      case a: Alias &#x3D;&gt;</span><br><span class="line">        id +&#x3D; 1</span><br><span class="line">        val normalizedChild &#x3D; QueryPlan.normalizeExprId(a.child, allAttributes)</span><br><span class="line">        Alias(normalizedChild, &quot;&quot;)(ExprId(id), a.qualifier)</span><br><span class="line"></span><br><span class="line">      case ar: AttributeReference if allAttributes.indexOf(ar.exprId) &#x3D;&#x3D; -1 &#x3D;&gt;</span><br><span class="line">        id +&#x3D; 1</span><br><span class="line">        ar.withExprId(ExprId(id)).canonicalized</span><br><span class="line"></span><br><span class="line">      case other &#x3D;&gt; QueryPlan.normalizeExprId(other, allAttributes)</span><br><span class="line">    &#125;.withNewChildren(canonicalizedChildren)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>有必要提一下 InMemoryRelation 这个类，这是 CacheManager 缓存已被 RBO 优化过的内存数据结构，包括：逻辑计划的输出字段，是否压缩(spark.sql.inMemoryColumnarStorage.compressed，默认 true，SparkSQL 将根据元数据信息自动匹配编码器)，批处理大小(spark.sql.inMemoryColumnarStorage.batchSize，默认 10000，控制列式存储的批处理大小，较大的值能提高内存利用率和压缩率 但是读数据时可能会 OOM)，存储等级(默认 MEMORY_AND_DISK)，RBO 优化完成的物理计划 SparkPlan，表名，对应 RDD[CachedBatch]，物理数据字节数，额外有一个<b> statsOfPlanToCache 暂时不知用途</b><br>[InMemoryRelation.scala]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">case class InMemoryRelation(</span><br><span class="line">    output: Seq[Attribute],</span><br><span class="line">    useCompression: Boolean,</span><br><span class="line">    batchSize: Int,</span><br><span class="line">    storageLevel: StorageLevel,</span><br><span class="line">    @transient child: SparkPlan,</span><br><span class="line">    tableName: Option[String])(</span><br><span class="line">    @transient var _cachedColumnBuffers: RDD[CachedBatch] &#x3D; null,</span><br><span class="line">    val sizeInBytesStats: LongAccumulator &#x3D; child.sqlContext.sparkContext.longAccumulator,</span><br><span class="line">    statsOfPlanToCache: Statistics)</span><br><span class="line">  extends logical.LeafNode with MultiInstanceRelation</span><br></pre></td></tr></table></figure>
+<p>CachedBatch 用以表明 batch 中数据行数，序列化的列数据 buffer，数据的元数据类型。<br>[CachedBatch.scala]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">case class CachedBatch(numRows: Int, buffers: Array[Array[Byte]], stats: InternalRow)</span><br></pre></td></tr></table></figure>
+
+<h3 id="RBO"><a href="#RBO" class="headerlink" title="RBO"></a>RBO</h3><p>SessionState 初始化时指定的 Optimizer 为 SparkOptimizer，SparkOptimizer 继承自 Optimizer，Optimizer 与 Analyzer 均继承自 RuleExecutor，都使用RuleExecutor#execute 方法遍历逻辑计划树应用 Optimizer/Analyzer 各自指定的规则库和执行策略 优化每个逻辑计划。故不再引用 RuleExecutor#execute 方法。<br>[BaseSessionStateBuilder.scala]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">protected def optimizer: Optimizer &#x3D; &#123;</span><br><span class="line">    new SparkOptimizer(catalog, experimentalMethods) &#123;</span><br><span class="line">      override def extendedOperatorOptimizationRules: Seq[Rule[LogicalPlan]] &#x3D;</span><br><span class="line">        super.extendedOperatorOptimizationRules ++ customOperatorOptimizationRules</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>除了类似于前后拦截器功能的 preOptimizationBatches、postHocOptimizationBatches 和拓展规则之外，SparkOptimizer 主要引用了 Optimizer 定义的通用规则，还有 4 个自定义规则:  </p>
+<ol>
+<li>OptimizeMetadataOnlyQuery，优化那些只遍历表分区键级别的元数据就可以完成的逻辑计划   　<ul>
+<li>在分区键上做聚合。e.g. SELECT col FROM tbl GROUP by col;   </li>
+<li>在分区键上去重并使用聚合函数。e.g. SELECT col1,count(DISTINCT col2) FROM tbl GROUP BY col1;   </li>
+<li>在分区键上应用有去重功能的聚合函数。e.g. SELECT col1, Max(col2) FROM tbl GROUP BY col1;   </li>
+</ul>
+</li>
+<li>ExtractPythonUDFFromAggregate，提取聚合操作中所有 PythonUDF。十分不推荐使用 pyspark   </li>
+<li>PruneFileSourcePartitions，物理文件分区下推。 读取 hadoop 目录时尽可能将过滤条件下推到分区键上，避免扫描所有文件。   </li>
+<li>PushDownOperatorsToDataSource  过滤操作下推到数据源，以提高性能。  </li>
+</ol>
+<p>[SparkOptimizer.scala]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">override def batches: Seq[Batch] &#x3D; (preOptimizationBatches ++ super.batches :+</span><br><span class="line">    Batch(&quot;Optimize Metadata Only Query&quot;, Once, OptimizeMetadataOnlyQuery(catalog)) :+</span><br><span class="line">    Batch(&quot;Extract Python UDF from Aggregate&quot;, Once, ExtractPythonUDFFromAggregate) :+</span><br><span class="line">    Batch(&quot;Prune File Source Table Partitions&quot;, Once, PruneFileSourcePartitions) :+</span><br><span class="line">    Batch(&quot;Push down operators to data source scan&quot;, Once, PushDownOperatorsToDataSource)) ++</span><br><span class="line">    postHocOptimizationBatches :+</span><br><span class="line">    Batch(&quot;User Provided Optimizers&quot;, fixedPoint, experimentalMethods.extraOptimizations: _*)</span><br></pre></td></tr></table></figure>
+<p>[Optimizer.scala]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br></pre></td><td class="code"><pre><span class="line">def batches: Seq[Batch] &#x3D; &#123;</span><br><span class="line">    val operatorOptimizationRuleSet &#x3D;</span><br><span class="line">      Seq(</span><br><span class="line">        &#x2F;&#x2F; Operator push down</span><br><span class="line">        PushProjectionThroughUnion,</span><br><span class="line">        ReorderJoin,</span><br><span class="line">        EliminateOuterJoin,</span><br><span class="line">        PushPredicateThroughJoin,</span><br><span class="line">        PushDownPredicate,</span><br><span class="line">        LimitPushDown,</span><br><span class="line">        ColumnPruning,</span><br><span class="line">        InferFiltersFromConstraints,</span><br><span class="line">        &#x2F;&#x2F; Operator combine</span><br><span class="line">        CollapseRepartition,</span><br><span class="line">        CollapseProject,</span><br><span class="line">        CollapseWindow,</span><br><span class="line">        CombineFilters,</span><br><span class="line">        CombineLimits,</span><br><span class="line">        CombineUnions,</span><br><span class="line">        &#x2F;&#x2F; Constant folding and strength reduction</span><br><span class="line">        NullPropagation,</span><br><span class="line">        ConstantPropagation,</span><br><span class="line">        FoldablePropagation,</span><br><span class="line">        OptimizeIn,</span><br><span class="line">        ConstantFolding,</span><br><span class="line">        ReorderAssociativeOperator,</span><br><span class="line">        LikeSimplification,</span><br><span class="line">        BooleanSimplification,</span><br><span class="line">        SimplifyConditionals,</span><br><span class="line">        RemoveDispensableExpressions,</span><br><span class="line">        SimplifyBinaryComparison,</span><br><span class="line">        PruneFilters,</span><br><span class="line">        EliminateSorts,</span><br><span class="line">        SimplifyCasts,</span><br><span class="line">        SimplifyCaseConversionExpressions,</span><br><span class="line">        RewriteCorrelatedScalarSubquery,</span><br><span class="line">        EliminateSerialization,</span><br><span class="line">        RemoveRedundantAliases,</span><br><span class="line">        RemoveRedundantProject,</span><br><span class="line">        SimplifyCreateStructOps,</span><br><span class="line">        SimplifyCreateArrayOps,</span><br><span class="line">        SimplifyCreateMapOps,</span><br><span class="line">        CombineConcats) ++</span><br><span class="line">        extendedOperatorOptimizationRules</span><br><span class="line"></span><br><span class="line">    val operatorOptimizationBatch: Seq[Batch] &#x3D; &#123;</span><br><span class="line">      val rulesWithoutInferFiltersFromConstraints &#x3D;</span><br><span class="line">        operatorOptimizationRuleSet.filterNot(_ &#x3D;&#x3D; InferFiltersFromConstraints)</span><br><span class="line">      Batch(&quot;Operator Optimization before Inferring Filters&quot;, fixedPoint,</span><br><span class="line">        rulesWithoutInferFiltersFromConstraints: _*) ::</span><br><span class="line">      Batch(&quot;Infer Filters&quot;, Once,</span><br><span class="line">        InferFiltersFromConstraints) ::</span><br><span class="line">      Batch(&quot;Operator Optimization after Inferring Filters&quot;, fixedPoint,</span><br><span class="line">        rulesWithoutInferFiltersFromConstraints: _*) :: Nil</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    (Batch(&quot;Eliminate Distinct&quot;, Once, EliminateDistinct) ::</span><br><span class="line">    &#x2F;&#x2F; 译: 从技术上将，”Finish Analysis“中的部分规则不是 optimizer rule 而是 analyzer rule，因为它们是保证正确性必须的。</span><br><span class="line">    &#x2F;&#x2F; 但是 因为我们使用 analyzer 来规范化查询(视图定义)，我们在 analyzer 中不去除子查询或计算当前时间</span><br><span class="line">    Batch(&quot;Finish Analysis&quot;, Once,</span><br><span class="line">      EliminateSubqueryAliases,</span><br><span class="line">      EliminateView,</span><br><span class="line">      ReplaceExpressions,</span><br><span class="line">      ComputeCurrentTime,</span><br><span class="line">      GetCurrentDatabase(sessionCatalog),</span><br><span class="line">      RewriteDistinctAggregates,</span><br><span class="line">      ReplaceDeduplicateWithAggregate) ::</span><br><span class="line">    &#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;</span><br><span class="line">    &#x2F;&#x2F; Optimizer rules start here</span><br><span class="line">    &#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;&#x2F;</span><br><span class="line">      &#x2F;&#x2F; 译: 在应用主要的优化规则之前先调用 CombineUnions,因为可以减少迭代次数，而其他规则可以在两个相邻的 Union操作符之间添加&#x2F;移动额外的操作符</span><br><span class="line">      &#x2F;&#x2F; 在规则库&quot;Operator Optimizations&quot;中再次调用 CombineUnions,是因为其他操作符可能会导致两个单独的 Union 变得相邻。</span><br><span class="line">    Batch(&quot;Union&quot;, Once,</span><br><span class="line">      CombineUnions) ::</span><br><span class="line">    Batch(&quot;Pullup Correlated Expressions&quot;, Once,</span><br><span class="line">      PullupCorrelatedPredicates) ::</span><br><span class="line">    Batch(&quot;Subquery&quot;, Once,</span><br><span class="line">      OptimizeSubqueries) ::</span><br><span class="line">    Batch(&quot;Replace Operators&quot;, fixedPoint,</span><br><span class="line">      ReplaceIntersectWithSemiJoin,</span><br><span class="line">      ReplaceExceptWithFilter,</span><br><span class="line">      ReplaceExceptWithAntiJoin,</span><br><span class="line">      ReplaceDistinctWithAggregate) ::</span><br><span class="line">    Batch(&quot;Aggregate&quot;, fixedPoint,</span><br><span class="line">      RemoveLiteralFromGroupExpressions,</span><br><span class="line">      RemoveRepetitionFromGroupExpressions) :: Nil ++</span><br><span class="line">    operatorOptimizationBatch) :+</span><br><span class="line">    Batch(&quot;Join Reorder&quot;, Once,</span><br><span class="line">      CostBasedJoinReorder) :+</span><br><span class="line">    Batch(&quot;Decimal Optimizations&quot;, fixedPoint,</span><br><span class="line">      DecimalAggregates) :+</span><br><span class="line">    Batch(&quot;Object Expressions Optimization&quot;, fixedPoint,</span><br><span class="line">      EliminateMapObjects,</span><br><span class="line">      CombineTypedFilters) :+</span><br><span class="line">    Batch(&quot;LocalRelation&quot;, fixedPoint,</span><br><span class="line">      ConvertToLocalRelation,</span><br><span class="line">      PropagateEmptyRelation) :+</span><br><span class="line">    &#x2F;&#x2F; The following batch should be executed after batch &quot;Join Reorder&quot; and &quot;LocalRelation&quot;.</span><br><span class="line">    Batch(&quot;Check Cartesian Products&quot;, Once,</span><br><span class="line">      CheckCartesianProducts) :+</span><br><span class="line">    Batch(&quot;RewriteSubquery&quot;, Once,</span><br><span class="line">      RewritePredicateSubquery,</span><br><span class="line">      ColumnPruning,</span><br><span class="line">      CollapseProject,</span><br><span class="line">      RemoveRedundantProject)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>按规则(库)应用的顺序串行列出(下述规则均在 SparkOptimizer中规则之前)，<b>欢迎指出错误</b>       </p>
+<table>
+<thead>
+<tr>
+<th align="left">规则库名</th>
+<th align="left">规则类名</th>
+<th align="left">功能</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">Eliminate Distinct</td>
+<td align="left">EliminateDistinct</td>
+<td align="left">去除 MAX/MIN 函数内的 DISTINCT</td>
+<td align="left">SELECT MAX(DISTINCT(age)) FROM a</td>
+</tr>
+<tr>
+<td align="left">Finish Analysis</td>
+<td align="left">EliminateSubqueryAliases</td>
+<td align="left">去除子查询别名,子查询仅仅提供查询属性集的作用,analyzer 阶段结束后便可去除子查询别名</td>
+<td align="left">Finish Analysis 规则不在 analyzer 中删除的意义是保存原始的 analyzed logic plan</td>
+</tr>
+<tr>
+<td align="left">Finish Analysis</td>
+<td align="left">EliminateView</td>
+<td align="left">去除视图操作符</td>
+<td align="left">视图的输出属性集必须和子查询输出属性集完全一致</td>
+</tr>
+<tr>
+<td align="left">Finish Analysis</td>
+<td align="left">ReplaceExpressions</td>
+<td align="left">将RuntimeReplaceable 表达式替换为可执行表达式</td>
+<td align="left">一般用来兼容各类数据库，例如用 coalesce 替换 nvl 函数</td>
+</tr>
+<tr>
+<td align="left">Finish Analysis</td>
+<td align="left">ComputeCurrentTime</td>
+<td align="left">记录当前时间,SQL 中任意位置和执行顺序的操作时间(date,timestamp)都会返回一致的结果</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">Finish Analysis</td>
+<td align="left">GetCurrentDatabase</td>
+<td align="left">使用 SessionCatalog 的数据库作为当前数据库返回</td>
+<td align="left">CurrentDataBase 函数没必要在执行阶段一条条计算,在 RBO 阶段获取完作为常量替换了函数表达式</td>
+</tr>
+<tr>
+<td align="left">Finish Analysis</td>
+<td align="left">RewriteDistinctAggregates</td>
+<td align="left">重写 count(distinct xx),展开数据通过一次聚合即可算出结果</td>
+<td align="left">SELECT count(distinct name) as name_cnt, count(distinct(age)) as age_cnt,sum(age) as age_sum FROM p GROUP BY year=&gt; 将数据展开成[[year,null,null,type0,ageVal],[year,name,null,type1,null],[year,null,age,type2,ageVal]]],group by (year,name,age,type,age),sum(if(type1,ageVal,0));sum(if(type2,1,0));sum(if(type3,1,0))…</td>
+</tr>
+<tr>
+<td align="left">Finish Analysis</td>
+<td align="left">ReplaceDeduplicateWithAggregate</td>
+<td align="left">替换 Deduplicate 操作为 Aggregate</td>
+<td align="left">没找到 Deduplicate 对应的语法,FIX ME</td>
+</tr>
+<tr>
+<td align="left">Union</td>
+<td align="left">CombineUnions</td>
+<td align="left">将有父子关系的 union all 汇集叶子节点一层</td>
+<td align="left">SELECT * FROM(SELECT * FROM a UNION ALL SELECT * FROM b) UNION ALL SELECT * FROM c =&gt; SELECT * FROM (a,b,c)</td>
+</tr>
+<tr>
+<td align="left">Pullup Correlated Expressions</td>
+<td align="left">PullupCorrelatedPredicates</td>
+<td align="left">?</td>
+<td align="left">?</td>
+</tr>
+<tr>
+<td align="left">Subquery</td>
+<td align="left">OptimizeSubqueries</td>
+<td align="left">RBO 优化子查询</td>
+<td align="left">子查询的父阶段为 SubQueryExpression,当解析到 SubQueryExpression 时,使用 RBO 优化子查询逻辑计划</td>
+</tr>
+<tr>
+<td align="left">Replace Operators</td>
+<td align="left">ReplaceIntersectWithSemiJoin</td>
+<td align="left">将 intersect 操作符转化为 left semi join 后再 distinct</td>
+<td align="left">left semi join 保留在右表中能关联到的左表选取列.SELECT name,age FROM a INTERSECT SELECT name,age FROM b =&gt; SELECT  DISTINCT name,age FROM a LEFT SEMI JOIN b ON a.name=b.name AND a.age=b.age</td>
+</tr>
+<tr>
+<td align="left">Replace Operators</td>
+<td align="left">ReplaceExceptWithFilter</td>
+<td align="left">将两个相同查询计划的子句 except操作符转为 Filter 后 Distinct</td>
+<td align="left">SELECT a1,a2 FROM t WHERE a2=12 EXCEPT SELECT a1,a2 FROM t WHERE a1=5  =&gt;SELECT DISTINCT a1,a2 FROM t WHERE a2=12 AND NOT(a1=5)。需要相同查询计划子句才能执行此转换</td>
+</tr>
+<tr>
+<td align="left">Replace Operators</td>
+<td align="left">ReplaceExceptWithAntiJoin</td>
+<td align="left">不同查询计划的子句 except 操作符转为 left anti join 操作后 DISTINCT</td>
+<td align="left">SELECT a1,a2 FROM t1 EXCEPT SELECT b1,b2 FROM t2 =&gt; SELECT DISTINCT a1,a2 FROM t1 LEFT ANTI JOIN t2 ON t1.a1=t2.b1 AND t1.a2=t2.b2</td>
+</tr>
+<tr>
+<td align="left">Replace Operators</td>
+<td align="left">ReplaceDistinctWithAggregate</td>
+<td align="left">将 distinct 操作符转为 group by</td>
+<td align="left">SELECT DISTINCT a,b FROM t =&gt; SELECT a,b FROM t GROUP BY a,b</td>
+</tr>
+<tr>
+<td align="left">Aggregate</td>
+<td align="left">RemoveLiteralFromGroupExpressions</td>
+<td align="left">去除 group by 条件中的常量和可折叠常量表达式,不影响聚合结果但会减少 key 数据量</td>
+<td align="left">SELECT a,b FROM t GROUP BY a,b,1,1&lt;0 =&gt;SELECT a,b FROM t GROUP BY a,b</td>
+</tr>
+<tr>
+<td align="left">Aggregate</td>
+<td align="left">RemoveRepetitionFromGroupExpressions</td>
+<td align="left">去除 group by 条件中的重复表达式,不影响聚合结果但会减少 key 数据量</td>
+<td align="left">SELECT a,b FROM t GROUP BY a,b,b =&gt;</td>
+</tr>
+<tr>
+<td align="left">Operator push down</td>
+<td align="left">PushProjectionThroughUnion</td>
+<td align="left">将查询列下推到各 union all 子句</td>
+<td align="left">SELECT a FROM (SELECT a,b FROM t1 UNION ALL SELECT c,d FROM t2) tbl_a =&gt; SELECT a FROM (SELECT a FROM t1 UNION ALL SELECT c FROM t2) tbl_a</td>
+</tr>
+<tr>
+<td align="left">Operator push down</td>
+<td align="left">ReorderJoin</td>
+<td align="left">按照逻辑计划数据行数启发式寻找星型模型的事实表和维度表,事实表在左以避免大表加载到内存,并以此重定义连接顺序</td>
+<td align="left">取决于spark.sql.cbo.starSchemaDetection 和 spark.sql.cbo.enabled,默认不开启。SELECT * FROM a,b,c where a.key=b.key and a.val=c.val =&gt; SELECT * FROM a join c on a.val=c.val join b on a.key=b.key , 大表居左小表居右</td>
+</tr>
+<tr>
+<td align="left">Operator push down</td>
+<td align="left">EliminateOuterJoin</td>
+<td align="left">尽可能转换 full join=&gt;right/left join=&gt;inner join</td>
+<td align="left">如果存在谓词可以削减 null-supplying 行(当输入数据为 null 时,谓词返回值为 null 或 false),则可以削弱 outer join. full join 可以转为 left/right/inner join,left/join join 可以转为 inner join. SELECT * FROM a left join b on a.key=b.key WHERE b.key IS NOT NULL =&gt;SELECT * FROM a inner join b on a.key=b.key</td>
+</tr>
+<tr>
+<td align="left">Operator push down</td>
+<td align="left">PushPredicateThroughJoin</td>
+<td align="left">join 谓词下推</td>
+<td align="left">包含两层含义: where 条件下推到 join 条件,join 条件下推到子查询</td>
+</tr>
+<tr>
+<td align="left">Operator push down</td>
+<td align="left">PushDownPredicate</td>
+<td align="left">对于确定性的操作和谓词且谓词不能改变行的逻辑计划,尽可能下推谓词以减少输入数据量</td>
+<td align="left">对于支持类似 BloomFilter 的列式存储,有极大提升</td>
+</tr>
+<tr>
+<td align="left">Operator push down</td>
+<td align="left">LimitPushDown</td>
+<td align="left">旨在减少输入数据量。1. union all 上级和下级 limit 数值不同则下级取 min 2.left join 上级和下级 limit 数值不同则下级左侧limit 取 min;right join 同理</td>
+<td align="left">SELECT * FROM (SELECT * FORM a limit 20 UNION ALL SELECT * FORM b limit 15) temp LIMIT 10 或者 SELECT * FROM (SELECT * FROM a LEFT JOIN b ON a.key=b.key) temp LIMIT 10</td>
+</tr>
+<tr>
+<td align="left">Operator push down</td>
+<td align="left">ColumnPruning</td>
+<td align="left">列裁剪</td>
+<td align="left">去掉在查询/聚合/窗口函数/union 等用不到的列读取</td>
+</tr>
+<tr>
+<td align="left">Operator push down</td>
+<td align="left">InferFiltersFromConstraints</td>
+<td align="left">在子查询后或者关联后的约束条件中删掉子查询内或者关联子节点内已有的约束条件</td>
+<td align="left">在当前规则库会被过滤掉,在 Infer Filters 规则库执行</td>
+</tr>
+<tr>
+<td align="left">Operator combine</td>
+<td align="left">CollapseRepartition</td>
+<td align="left">折叠有父子关系的再分区操作</td>
+<td align="left">当父节点和子节点均为再分区操作,但父节点无 shuffle(coalesce api)子节点有 shuffle 且父节点再分区数大于子节点再分区数则删除父节点,若再分区数不大于子节点则不改变结构。若 shuffle 关系不为(false,true)及其他情况则折叠子节点 RepartitionOperation</td>
+</tr>
+<tr>
+<td align="left">Operator combine</td>
+<td align="left">CollapseProject</td>
+<td align="left">折叠有父子关系的父节点 Projection 操作</td>
+<td align="left">SELECT age FROM (SELECT name,age+1 as age FROM p) temp=&gt;SELECT age+1 as age FROM p</td>
+</tr>
+<tr>
+<td align="left">Operator combine</td>
+<td align="left">CollapseWindow</td>
+<td align="left">折叠分区字段一致、排序方式一致且表达式相互独立、有父子关系的子节点 Window 操作</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">Operator combine</td>
+<td align="left">CombineFilters</td>
+<td align="left">折叠有父子关系的父节点 Filter 操作</td>
+<td align="left">SELECT name,age FROM (SELECT name,age FROM p where name is not null)temp where age&gt;10 =&gt;SELECT name,age FROM p WHERE name is not null AND age&gt;10</td>
+</tr>
+<tr>
+<td align="left">Operator combine</td>
+<td align="left">CombineLimits</td>
+<td align="left">折叠有父子关系的父节点 Limit 操作,limit 数值取 minimum</td>
+<td align="left">Limit 分为 GlobalLimit,LocalLimit 两类,GlobalLimit 需要shuffle,LocalLimit 不需要。GlobalLimit(Union(A,B))可以转化为 GlobalLimit(Union(LocalLimit(A),LocalLimit(B)))来降低 shuffle 数据量</td>
+</tr>
+<tr>
+<td align="left">Operator combine</td>
+<td align="left">CombineUnions</td>
+<td align="left">重复规则,同 Union规则库的 CombineUnion 规则</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">NullPropagation</td>
+<td align="left">null 值替换</td>
+<td align="left">将表达式中可评估的 null 值替换为等效常量,count(name)=&gt;count(1)</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">ConstantPropagation</td>
+<td align="left">Filter 操作中常量替换</td>
+<td align="left">SELECT * FROM p WHERE age=10 and age2=age+3 =&gt; SELECT * FROM p WHERE age=10 AND age2=13</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">FoldablePropagation</td>
+<td align="left">可折叠表达式替换</td>
+<td align="left">尽可能将属性替换为原始可折叠表达式,其他优化规则将利用可折叠表达式进行优化。SELECT 1.0 as x,’abc’ as y,now() as z order by x,y,z =&gt; SELECT 1.0 as x,’abc’ as y,now() as z ORDER BY 1.0,’abc’,now(); 这样其他规则可以去掉 order by 操作符</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">OptimizeIn</td>
+<td align="left">IN 优化</td>
+<td align="left">尽可能优化 IN 谓词: 1.当 in 列表为空且指定列不可为空时直接返回 false 2.当 in 列表元素数量超过配置(默认 10),将列表转为 HashSet 以去重和使用哈希索引提高性能。In(value,seq[Literal])=&gt;InSet(value,HashSet[Literal])</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">ConstantFolding</td>
+<td align="left">常量折叠</td>
+<td align="left">将可静态计算的表达式替换为等效常量.SELECT 1+2 as a FROM p=&gt;SELECT 3 FROM p</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">ReorderAssociativeOperator</td>
+<td align="left">重排序所有整数类型运算符,将所有确定性整数折叠计算为一个结果</td>
+<td align="left">和 ConstantFolding 折叠不同，ConstantFolding 要在整个表达式都静态可计算(确定性)时才会应用。ReorderAssociativeOperator 这里尽管有不确定性部分，但会尽可能将确定性部分计算出来。SELECT (age+1)+2 as a FROM p =&gt;SELECT age+3 as a FROM p</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">LikeSimplification</td>
+<td align="left">正则匹配简化</td>
+<td align="left">尽可能将 rlike正则匹配简化为字符串startWith,endWith,equal,container 等操作</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">BooleanSimplification</td>
+<td align="left">布尔表达式简化</td>
+<td align="left">尽可能简化 boolean 表达式/快速中断/删除不必要的 not 。false AND e=&gt;false,true AND e=&gt;e,a AND b=&gt;Not(a).semanticEquals(b) =&gt; false,Not(Not(a))=&gt;a</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">SimplifyConditionals</td>
+<td align="left">条件表达式简化(if(condition,trueVal,falseVal),case when)</td>
+<td align="left">如果 if表达式 恒定true或 false 则修改逻辑计划为相应的 val;如果 case when 表达式中有恒 false 值则删除其分支，若所有分支恒 false 则取 else 语句值；若 case when 第一个表达式恒 true，则取其值；恒 true 分支会删除其后续所有分支</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">RemoveDispensableExpressions</td>
+<td align="left">删除 UnaryPositive 节点(仅有标识子节点表达式作用)</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">SimplifyBinaryComparison</td>
+<td align="left">简化比较</td>
+<td align="left">1.将&lt;=&gt;替换为 true;2.将=和&lt;=和&gt;= 在两侧均非空且逻辑计划结果一致时替换为 true;3. 将&gt;和&lt;在两侧均非空且逻辑计划结果一致时替换为 false。age&lt;AGE  =&gt;false</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">PruneFilters</td>
+<td align="left">约束条件简化</td>
+<td align="left">1. 当约束条件恒 true 时,删除父节点;2.当约束条件恒 false 或 null 时,替换父节点的输入为空集;3.在父节点约束条件中去除子节点已有的约束条件</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">EliminateSorts</td>
+<td align="left">删除无效的排序</td>
+<td align="left">删除排序中确定性的排序方式,甚至不排序.SELECT name,age FROM p ORDER BY 1 ASC, age DESC</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">SimplifyCasts</td>
+<td align="left">强制类型转换简化</td>
+<td align="left">当强制转化的类型相同(仅限于 基础数据类型相同 或 Array 内嵌数据类型相同 或 Map 内嵌 key 和 value 类型均相同)时,去除 Cast (col to type) 操作</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">SimplifyCaseConversionExpressions</td>
+<td align="left">简化大小写转换表达式</td>
+<td align="left">内部转换会被外部转换覆盖 Upper(Lower(x))=&gt;Upper(x),Lower(Lower(x))=&gt;Lower(x)</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">RewriteCorrelatedScalarSubquery</td>
+<td align="left">？？</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">EliminateSerialization</td>
+<td align="left">删除不必要的在 object 和 InternalRow 之间的(循环)序列化/反序列化操作</td>
+<td align="left">1.反序列化为父节点,序列化为子节点且操作字段相同;2.将数据反序列化并追加数据到末尾时AppendColumns可替换AppendColumnsWithObject操作符 直接操作序列化后的数据(类似于 UnsafeSortShuffle) 3. TypedFilter为父节点,序列化为子节点时 4.反序列化为父节点,TypedFilter 为子节点时</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">RemoveRedundantAliases</td>
+<td align="left">删除无效别名</td>
+<td align="left">无效别名是指在子查询或者关联中不改变列名/列元数据的别名</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">RemoveRedundantProject</td>
+<td align="left">删除无效查询</td>
+<td align="left">无效查询是指父查询和子查询目标字段相同</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">SimplifyCreateStructOps</td>
+<td align="left">结构体创建简化</td>
+<td align="left">named_struct(‘name’,name,’age’,age).age=&gt;age</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">SimplifyCreateArrayOps</td>
+<td align="left">数组创建简化</td>
+<td align="left">1.当对创建的数组按下标取值时,减少创建数组的数据量.Array(elem0,elem1…)(1)=&gt;elems(1);2.Array(named_stuct(name,”nA”),named_struct(age,12))[0].name=&gt;named_struct(name,”nA”).name</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">SimplifyCreateMapOps</td>
+<td align="left">映射创建简化</td>
+<td align="left">map(key1-&gt;val2,key2-&gt;val2).key2 =&gt; case when key2</td>
+</tr>
+<tr>
+<td align="left">Constant folding and strength reduction</td>
+<td align="left">CombineConcats</td>
+<td align="left">合并 concat</td>
+<td align="left">将有父子关系的 concat 所有子节点扁平化 合并</td>
+</tr>
+<tr>
+<td align="left">Infer Filters</td>
+<td align="left">InferFiltersFromConstraints</td>
+<td align="left">InferFiltersFromConstraints</td>
+<td align="left">在子查询后或者关联后的约束条件中删掉子查询内或者关联子节点内已有的约束条件</td>
+</tr>
+<tr>
+<td align="left">Join Reorder</td>
+<td align="left">CostBasedJoinReorder</td>
+<td align="left">？</td>
+<td align="left">？</td>
+</tr>
+<tr>
+<td align="left">Decimal Optimizations</td>
+<td align="left">DecimalAggregates</td>
+<td align="left">加速浮点数运算</td>
+<td align="left">float 和 double 运算中一般需要控制精度(precision) 和小数位(scale)。窗口函数内聚合和普通聚合的 sum/avg 场景下将浮点计算转为长整形计算并在结束时转回来</td>
+</tr>
+<tr>
+<td align="left">Object Expressions Optimization</td>
+<td align="left">EliminateMapObjects</td>
+<td align="left">简化 MapObject 操作</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">Object Expressions Optimization</td>
+<td align="left">CombineTypedFilters</td>
+<td align="left">简化 TypedFilter</td>
+<td align="left">去除具有父子关系的子节点 TypedFilter,合并两者的约束条件</td>
+</tr>
+<tr>
+<td align="left">LocalRelation</td>
+<td align="left">ConvertToLocalRelation</td>
+<td align="left">简化为 LocalRelation</td>
+<td align="left">在 LocalRelation 上取 Limit 时,直接转化为 LocalRelation 在数据上取 Limit 减少输入数据数量</td>
+</tr>
+<tr>
+<td align="left">LocalRelation</td>
+<td align="left">PropagateEmptyRelation</td>
+<td align="left">空 Relation 优化</td>
+<td align="left">对于上述优化规则(e.g. 列裁剪谓词下推)产生的或基础数据为空的 Relation 进行优化. 1,关联时按照左右空 Relation 和Join 类型分别讨论,左空 &amp;&amp; 左外连接=&gt;Empty 2.union all 所有子节点都空直接返回空数据集 3.一元节点的所有子节点都是空 Relation 则直接返回空数据集合, Select/Limit/Repartition 且 children 都为空 Relation=&gt;空数据集合</td>
+</tr>
+<tr>
+<td align="left">Check Cartesian Products</td>
+<td align="left">CheckCartesianProducts</td>
+<td align="left">笛卡尔积检测</td>
+<td align="left">检测逻辑计划树中是否有全外连接</td>
+</tr>
+<tr>
+<td align="left">RewriteSubquery</td>
+<td align="left">RewritePredicateSubquery</td>
+<td align="left">重写谓词子查询</td>
+<td align="left">将 in/exists 转为 semi join,将 not in / not exists 转为 anti join</td>
+</tr>
+<tr>
+<td align="left">RewriteSubquery</td>
+<td align="left">ColumnPruning</td>
+<td align="left">列裁剪</td>
+<td align="left">同 Aggregate规则库中的 ColumnPruning,去掉在查询/聚合/窗口函数/union 等用不到的列读取</td>
+</tr>
+<tr>
+<td align="left">RewriteSubquery</td>
+<td align="left">CollapseProject</td>
+<td align="left">折叠有父子关系的父节点 Projection 操作</td>
+<td align="left">同 Aggregate 规则库的 RewriteSubquery</td>
+</tr>
+<tr>
+<td align="left">RewriteSubquery</td>
+<td align="left">RemoveRedundantProject</td>
+<td align="left">删除无效查询</td>
+<td align="left">同 Aggregate 规则库的RemoveRedundantProject,无效查询是指父查询和子查询目标字段相同</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
+              <a href="/tags/Spark-2-3-0/" rel="tag"># Spark 2.3.0</a>
+              <a href="/tags/Spark-SQL/" rel="tag"># Spark SQL</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019-11-29-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(2):%E4%BB%8E%20UnresolvedLogicPlan%20%E5%88%B0%20ResolvedLogicPlan/" rel="prev" title="SparkSQL源码解析(2):从 UnsolvedLogicPlan 到 ResolvedLogicPlan">
+      <i class="fa fa-chevron-left"></i> SparkSQL源码解析(2):从 UnsolvedLogicPlan 到 ResolvedLogicPlan
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/hello-world/" rel="next" title="Hello World">
+      Hello World <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#概述"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#源码解析"><span class="nav-number">2.</span> <span class="nav-text">源码解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#CacheManager"><span class="nav-number">2.1.</span> <span class="nav-text">CacheManager</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#RBO"><span class="nav-number">2.2.</span> <span class="nav-text">RBO</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">List</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jiulong.zhu@gmail.com" title="E-Mail → mailto:jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">List</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong-zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/",
+            identifier: "2019-12-10-SparkSQL 源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan/",
+            title: "SparkSQL源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

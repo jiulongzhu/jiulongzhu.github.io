@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="摘要Spark 为 Standalone 和 CoarseGrained(Yarn&#x2F;Mesos)调度模式提供了动态资源(executor)分配功能,可以根据 Application 的工作负载动态调整其占用的资源.在多 Application 同时运行的情况下,可以提高资源利用率.原理是Spark 定时调度,利用正在运行和积压的任务数推算出需要的executor 数量并和已持有的数量对比,增加 e">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ExecutorAllocationManager源码分析">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-08-09-ExecutorAllocationManager&#x2F;index.html">
+<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:description" content="摘要Spark 为 Standalone 和 CoarseGrained(Yarn&#x2F;Mesos)调度模式提供了动态资源(executor)分配功能,可以根据 Application 的工作负载动态调整其占用的资源.在多 Application 同时运行的情况下,可以提高资源利用率.原理是Spark 定时调度,利用正在运行和积压的任务数推算出需要的executor 数量并和已持有的数量对比,增加 e">
+<meta property="article:published_time" content="2019-08-08T16:00:00.000Z">
+<meta property="article:modified_time" content="2019-12-12T03:57:10.010Z">
+<meta property="article:author" content="List">
+<meta property="article:tag" content="源码解析">
+<meta property="article:tag" content="Spark 2.3.0">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2019-08-09-ExecutorAllocationManager/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>ExecutorAllocationManager源码分析 | List's Blog</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">List's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">李斯特</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-08-09-ExecutorAllocationManager/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ExecutorAllocationManager源码分析
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-08-09 00:00:00" itemprop="dateCreated datePublished" datetime="2019-08-09T00:00:00+08:00">2019-08-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-12-12 11:57:10" itemprop="dateModified" datetime="2019-12-12T11:57:10+08:00">2019-12-12</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-08-09-ExecutorAllocationManager/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-08-09-ExecutorAllocationManager/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a>摘要</h2><p>Spark 为 Standalone 和 CoarseGrained(Yarn/Mesos)调度模式提供了动态资源(executor)分配功能,可以根据 Application 的工作负载动态调整其占用的资源.在多 Application 同时运行的情况下,可以提高资源利用率.原理是Spark 定时调度,利用正在运行和积压的任务数推算出需要的executor 数量并和已持有的数量对比,增加 executor;利用维护的节点空闲时间信息,释放掉空闲的 executor.</p>
+<a id="more"></a>
+
+<h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><pre><code>在SparkOnYarn任务执行的时候,发现了下面几条日志:
+ExecutorAllocationManager: Requesting 2 new executors because tasks are backlogged (new desired total will be 7)
+ExecutorAllocationManager: Removing executor 6 because it has been idle for 180 seconds (new desired total will be 5)
+上述日志没有时间先后及因果关系,发现ExecutorAllocationManager 会依据积压的任务申请新的 executor,并在 executor 空闲一段时间后释放 executor.</code></pre><h2 id="开启方法"><a href="#开启方法" class="headerlink" title="开启方法"></a>开启方法</h2><h3 id="Cluster"><a href="#Cluster" class="headerlink" title="Cluster"></a>Cluster</h3><pre><code>仅以资源调度平台最通用的 yarn 举例
+   1.spark 源代码编译时需支持 yarn 特性  
+   2.将 $SPARK_HOME/common/network-yarn/target/scala-&lt;version&gt;/spark-&lt;version&gt;-yarn-shuffle.jar移动到各 NodeManager 的 classpath 下  
+   3.各节点的yarn-site.xml 配置文件中,设置 yarn.nodemanager.aux-services为spark_shuffle,yarn.nodemanager.aux-services.spark_shuffle.class为org.apache.spark.network.yarn.YarnShuffleService
+   4.etc/hadoop/yarn-env.sh文件中,增加NodeManager 的堆内存YARN_HEAPSIZE,以减少 shuffle 期间的 GC 频率
+   5.重启所有的 NodeManager</code></pre><h3 id="Application"><a href="#Application" class="headerlink" title="Application"></a>Application</h3><pre><code>必须把下面两个参数默认都是 false,需要设置为 true
+spark.dynamicAllocation.enabled true        开启动态资源分配机制
+spark.shuffle.service.enabled true      使用额外的 shuffle service 服务,可以使 executor 被移除时,不会删除该 executor写入的 shuffle数据.
+spark.shuffle.service.port 7337   额外的 shuffle service 服务所占用的端口</code></pre><h3 id="配置参数"><a href="#配置参数" class="headerlink" title="配置参数"></a>配置参数</h3><p>spark.dynamicAllocation.enabled true<br>spark.shuffle.service.enabled true<br>spark.dynamicAllocation.minExecutors 2        动态数量下界<br>spark.dynamicAllocation.maxExecutors 100     动态数量上界<br>spark.dynamicAllocation.initialExecutors 2     executor初始化时申请的数量<br>spark.dynamicAllocation.schedulerBacklogTimeout 60s  被积压的任务等待时间超过此值时,触发一次executor申请<br>spark.dynamicAllocation.sustainedSchedulerBacklogTimeout 60s 和spark.dynamicAllocation.schedulerBacklogTimeout值相同,用于后续的executor申请<br>spark.dynamicAllocation.executorIdleTimeout 180s     executor在空闲了该时间之后,释放该 executor<br>spark.dynamicAllocation.cachedExecutorIdleTimeout infinity  缓存了数据的 executor 在空闲了该时间之后,释放该 executor.一般不修改即不删除   </p>
+<h2 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h2><p>ExecutorAllocationManager 被调用的入口是 SparkContext</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">[SparkContext.scala]</span><br><span class="line">    val dynamicAllocationEnabled &#x3D; Utils.isDynamicAllocationEnabled(_conf) &#x2F;&#x2F;判断 spark.dynamicAllocation.enable 参数</span><br><span class="line">    _executorAllocationManager &#x3D;</span><br><span class="line">      if (dynamicAllocationEnabled) &#123;</span><br><span class="line">        schedulerBackend match &#123;</span><br><span class="line">          case b: ExecutorAllocationClient &#x3D;&gt;	&#x2F;&#x2F;子类是 StandaloneSchdulerBackend 和 CoarseGrainedSchedulerBackend,没有 Local</span><br><span class="line">            Some(new ExecutorAllocationManager(</span><br><span class="line">              schedulerBackend.asInstanceOf[ExecutorAllocationClient], listenerBus, _conf,</span><br><span class="line">              _env.blockManager.master))</span><br><span class="line">          case _ &#x3D;&gt;</span><br><span class="line">            None</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">        None</span><br><span class="line">      &#125;</span><br><span class="line">    _executorAllocationManager.foreach(_.start())</span><br></pre></td></tr></table></figure>
+
+<p>ExecutorAllocationManager中的关键成员变量,主要用于申请/注销 executor 时的信息维护</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">[ExecutorAllocationManager.scala]</span><br><span class="line">  &#x2F;&#x2F;在下次申请 executor 时的滚动增量	</span><br><span class="line">  private var numExecutorsToAdd &#x3D; 1</span><br><span class="line">  &#x2F;&#x2F;当前已持有的 executor 数量.如果运行中所有的 executor 都挂了,该值正是 application 向 clustermanager 申请的 executor 数量,而非再从 initExecutorNum 和 numExecutorToAdd 滚动增加至挂掉前状态</span><br><span class="line">  private var numExecutorsTarget &#x3D; initialNumExecutors</span><br><span class="line">  &#x2F;&#x2F;已经请求释放但是还没被释放的 executor 列表</span><br><span class="line">  private val executorsPendingToRemove &#x3D; new mutable.HashSet[String]</span><br><span class="line">  &#x2F;&#x2F;application 所有的 executor</span><br><span class="line">  private val executorIds &#x3D; new mutable.HashSet[String]</span><br><span class="line">  &#x2F;&#x2F; A timestamp of when an addition should be triggered, or NOT_SET if it is not set</span><br><span class="line">  &#x2F;&#x2F; This is set when pending tasks are added but not scheduled yet</span><br><span class="line">  private var addTime: Long &#x3D; NOT_SET</span><br><span class="line">   &#x2F;&#x2F;&lt;executorId,最大存活时间&gt;信息.在 executor 第一次注册或不再运行任务时设置</span><br><span class="line">  private val removeTimes &#x3D; new mutable.HashMap[String, Long]</span><br><span class="line">  &#x2F;&#x2F;是否是 application初始化时期.为 true 时,不会申请executor;当开始执行任务后或者executor 已经过了超时时间 时为 false</span><br><span class="line">  @volatile private var initializing: Boolean &#x3D; true</span><br><span class="line">  &#x2F;&#x2F;用于 executor 本地化计算分配,调用 clustermanager 接口的必须参数</span><br><span class="line">  private var localityAwareTasks &#x3D; 0</span><br><span class="line">  &#x2F;&#x2F;用于 executor 本地化计算分配,调用cm 接口的必须参数</span><br><span class="line">  private var hostToLocalTaskCount: Map[String, Int] &#x3D; Map.empty</span><br></pre></td></tr></table></figure>
+
+<p>周期性检测 application 的工作负载,动态调节executor 的数量</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">ExecutorAllocationManager.scala</span><br><span class="line"> def start(): Unit &#x3D; &#123;</span><br><span class="line">    listenerBus.addToManagementQueue(listener)</span><br><span class="line">    val scheduleTask &#x3D; new Runnable() &#123;</span><br><span class="line">      override def run(): Unit &#x3D; &#123;</span><br><span class="line">             ...</span><br><span class="line">             schedule()</span><br><span class="line">             ...</span><br><span class="line">      	&#125;</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F;定时调度,间隔100ms</span><br><span class="line">    executor.scheduleWithFixedDelay(scheduleTask, 0, intervalMillis, TimeUnit.MILLISECONDS)</span><br><span class="line">    &#x2F;&#x2F;先向集群申请初始化数量的 executor. numExecutorTarget 初始值是 max(spark.dynamicAllocation.minExecutors,spark.dynamicAllocation.initialExecutors,spark.executor.instances),其他两个参数是 0 和 Map.Empty</span><br><span class="line">    client.requestTotalExecutors(numExecutorsTarget, localityAwareTasks, hostToLocalTaskCount)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>schedule 方法的逻辑分为两块,1.检测是否要申请 executor 以及申请 2.检测是否要释放 executor 以及释放</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">private def schedule(): Unit &#x3D; synchronized &#123;</span><br><span class="line">    val now &#x3D; clock.getTimeMillis</span><br><span class="line">    &#x2F;&#x2F;申请</span><br><span class="line">    updateAndSyncNumExecutorsTarget(now)</span><br><span class="line">    &#x2F;&#x2F;待释放列表</span><br><span class="line">    val executorIdsToBeRemoved &#x3D; ArrayBuffer[String]()</span><br><span class="line">    &#x2F;&#x2F;保留未超时的 executor,将超时的 executor 加入到待释放列表</span><br><span class="line">    removeTimes.retain &#123; case (executorId, expireTime) &#x3D;&gt;</span><br><span class="line">      val expired &#x3D; now &gt;&#x3D; expireTime</span><br><span class="line">      if (expired) &#123;</span><br><span class="line">        initializing &#x3D; false</span><br><span class="line">        executorIdsToBeRemoved +&#x3D; executorId</span><br><span class="line">      &#125;</span><br><span class="line">      !expired</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F;释放</span><br><span class="line">    if (executorIdsToBeRemoved.nonEmpty) &#123;</span><br><span class="line">      removeExecutors(executorIdsToBeRemoved)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>先看释放 executor 的逻辑,比较简单</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line">private def removeExecutors(executors: Seq[String]): Seq[String] &#x3D; synchronized &#123;</span><br><span class="line">  val executorIdsToBeRemoved &#x3D; new ArrayBuffer[String]</span><br><span class="line">  logInfo(&quot;Request to remove executorIds: &quot; + executors.mkString(&quot;, &quot;))</span><br><span class="line">  &#x2F;&#x2F;当前存活的节点数</span><br><span class="line">  val numExistingExecutors &#x3D; allocationManager.executorIds.size - executorsPendingToRemove.size</span><br><span class="line">  var newExecutorTotal &#x3D; numExistingExecutors</span><br><span class="line">  executors.foreach &#123; executorIdToBeRemoved &#x3D;&gt;</span><br><span class="line">  &#x2F;&#x2F;如果删除该节点,导致存活节点数小于动态资源下界或者小于当前需要的资源数,则不删除</span><br><span class="line">    if (newExecutorTotal - 1 &lt; minNumExecutors) &#123;</span><br><span class="line">      logDebug(s&quot;Not removing idle executor $executorIdToBeRemoved because there are only &quot; +</span><br><span class="line">        s&quot;$newExecutorTotal executor(s) left (minimum number of executor limit $minNumExecutors)&quot;)</span><br><span class="line">    &#125; else if (newExecutorTotal - 1 &lt; numExecutorsTarget) &#123;</span><br><span class="line">      logDebug(s&quot;Not removing idle executor $executorIdToBeRemoved because there are only &quot; +</span><br><span class="line">        s&quot;$newExecutorTotal executor(s) left (number of executor target $numExecutorsTarget)&quot;)</span><br><span class="line">    &#125; else if (canBeKilled(executorIdToBeRemoved)) &#123;</span><br><span class="line">      executorIdsToBeRemoved +&#x3D; executorIdToBeRemoved</span><br><span class="line">      newExecutorTotal -&#x3D; 1</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  if (executorIdsToBeRemoved.isEmpty) &#123;</span><br><span class="line">    return Seq.empty[String]</span><br><span class="line">  &#125;</span><br><span class="line">  val executorsRemoved &#x3D; if (testing) &#123;</span><br><span class="line">    executorIdsToBeRemoved</span><br><span class="line">  &#125; else &#123;</span><br><span class="line">      client.killExecutors(executorIdsToBeRemoved, adjustTargetNumExecutors &#x3D; false,</span><br><span class="line">      countFailures &#x3D; false, force &#x3D; false)</span><br><span class="line">  &#125;</span><br><span class="line">   client.requestTotalExecutors(numExecutorsTarget, localityAwareTasks, hostToLocalTaskCount)</span><br><span class="line">  newExecutorTotal &#x3D; numExistingExecutors</span><br><span class="line">  if (testing || executorsRemoved.nonEmpty) &#123;</span><br><span class="line">    executorsRemoved.foreach &#123; removedExecutorId &#x3D;&gt;</span><br><span class="line">      newExecutorTotal -&#x3D; 1</span><br><span class="line">      logInfo(s&quot;Removing executor $removedExecutorId because it has been idle for &quot; +</span><br><span class="line">        s&quot;$executorIdleTimeoutS seconds (new desired total will be $newExecutorTotal)&quot;)</span><br><span class="line">      executorsPendingToRemove.add(removedExecutorId)</span><br><span class="line">    &#125;</span><br><span class="line">    executorsRemoved</span><br><span class="line">  &#125; else &#123;</span><br><span class="line">    logWarning(s&quot;Unable to reach the cluster manager to kill executor&#x2F;s &quot; +</span><br><span class="line">      s&quot;$&#123;executorIdsToBeRemoved.mkString(&quot;,&quot;)&#125; or no executor eligible to kill!&quot;)</span><br><span class="line">    Seq.empty[String]</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>killExecutors 的逻辑在对接底层资源调度平台(Standalone,CoarseGrained)的实现类中,以CoarseGrainedSchedulerBackend为例</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">[CoarseGrainedSchedulerBackend.scala]</span><br><span class="line">final override def killExecutors(</span><br><span class="line">      executorIds: Seq[String],</span><br><span class="line">      adjustTargetNumExecutors: Boolean,</span><br><span class="line">      countFailures: Boolean,</span><br><span class="line">      force: Boolean): Seq[String] &#x3D; &#123;</span><br><span class="line">    val response &#x3D; synchronized &#123;</span><br><span class="line">      val (knownExecutors, unknownExecutors) &#x3D; executorIds.partition(executorDataMap.contains)</span><br><span class="line">      unknownExecutors.foreach &#123; id &#x3D;&gt;</span><br><span class="line">        logWarning(s&quot;Executor to kill $id does not exist!&quot;)</span><br><span class="line">      &#125;</span><br><span class="line">     &#x2F;&#x2F;从待删除的列表中过滤掉确定被删除但还未被删除的和没有正在跑task 的 executor,作为此次请求 cm 释放的executor</span><br><span class="line">      val executorsToKill &#x3D; knownExecutors</span><br><span class="line">        .filter &#123; id &#x3D;&gt; !executorsPendingToRemove.contains(id) &#125;</span><br><span class="line">        .filter &#123; id &#x3D;&gt; force || !scheduler.isExecutorBusy(id) &#125;</span><br><span class="line">      executorsToKill.foreach &#123; id &#x3D;&gt; executorsPendingToRemove(id) &#x3D; !countFailures &#125;</span><br><span class="line">      logInfo(s&quot;Actual list of executor(s) to be killed is $&#123;executorsToKill.mkString(&quot;, &quot;)&#125;&quot;)</span><br><span class="line">      </span><br><span class="line">      &#x2F;&#x2F; If we do not wish to replace the executors we kill, sync the target number of executors</span><br><span class="line">      &#x2F;&#x2F; with the cluster manager to avoid allocating new ones. When computing the new target,</span><br><span class="line">      &#x2F;&#x2F; take into account executors that are pending to be added or removed.</span><br><span class="line">      val adjustTotalExecutors &#x3D;</span><br><span class="line">        if (adjustTargetNumExecutors) &#123;</span><br><span class="line">          requestedTotalExecutors &#x3D; math.max(requestedTotalExecutors - executorsToKill.size, 0)</span><br><span class="line">          ..</span><br><span class="line">          doRequestTotalExecutors(requestedTotalExecutors)</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">          numPendingExecutors +&#x3D; knownExecutors.size</span><br><span class="line">          Future.successful(true)</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">      val killExecutors: Boolean &#x3D;&gt; Future[Boolean] &#x3D;</span><br><span class="line">        if (!executorsToKill.isEmpty) &#123;</span><br><span class="line">          _ &#x3D;&gt; doKillExecutors(executorsToKill)</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">          _ &#x3D;&gt; Future.successful(false)</span><br><span class="line">        &#125;</span><br><span class="line">      val killResponse &#x3D; adjustTotalExecutors.flatMap(killExecutors)(ThreadUtils.sameThread)</span><br><span class="line">      killResponse.flatMap(killSuccessful &#x3D;&gt;</span><br><span class="line">        Future.successful (if (killSuccessful) executorsToKill else Seq.empty[String])</span><br><span class="line">      )(ThreadUtils.sameThread)</span><br><span class="line">    &#125;</span><br><span class="line">    defaultAskTimeout.awaitResult(response)</span><br><span class="line">  &#125;</span><br><span class="line">   protected def doKillExecutors(executorIds: Seq[String]): Future[Boolean] &#x3D;</span><br><span class="line">    Future.successful(false)</span><br></pre></td></tr></table></figure>
+<p>doKillExecutor和doRequestTotalExecutors在 CoarseGrainedSchedulerBackend 中有默认实现,里面内容比较有迷惑性,其实逻辑在YarnSchedulerBackend中,封装了YarnClientSchedulerBackend 和 YarnClusterSchedulerBackend 实现类的通用逻辑.ResourceManager 端的逻辑不在此讨论</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">[YarnSchedulerBackend.scala]</span><br><span class="line">  override def doKillExecutors(executorIds: Seq[String]): Future[Boolean] &#x3D; &#123;</span><br><span class="line">    yarnSchedulerEndpointRef.ask[Boolean](KillExecutors(executorIds))</span><br><span class="line">  &#125;</span><br><span class="line">  override def doRequestTotalExecutors(requestedTotal: Int): Future[Boolean] &#x3D; &#123;</span><br><span class="line">    yarnSchedulerEndpointRef.ask[Boolean](prepareRequestExecutors(requestedTotal))</span><br></pre></td></tr></table></figure>
+<p>再看申请 executor 的逻辑,对 ExecutorAllocationManager#start#schedule#updateAndSyncNumExecutorsTarget(now)方法做解析</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br></pre></td><td class="code"><pre><span class="line">private def updateAndSyncNumExecutorsTarget(now: Long): Int &#x3D; synchronized &#123;</span><br><span class="line">    val maxNeeded &#x3D; maxNumExecutorsNeeded</span><br><span class="line">    if (initializing) &#123;</span><br><span class="line">      &#x2F;&#x2F;application job 还没有开始执行第一个 stage,所以不需要申请额外的资源</span><br><span class="line">       0</span><br><span class="line">    &#125; else if (maxNeeded &lt; numExecutorsTarget) &#123;</span><br><span class="line">      &#x2F;&#x2F;如果当前计算出所需的资源小于已经拥有的资源,那么没有必要再申请新的,申请了也是空闲</span><br><span class="line">      &#x2F;&#x2F;可以代入一些值做debug</span><br><span class="line">      val oldNumExecutorsTarget &#x3D; numExecutorsTarget</span><br><span class="line">      numExecutorsTarget &#x3D; math.max(maxNeeded, minNumExecutors)</span><br><span class="line">      numExecutorsToAdd &#x3D; 1</span><br><span class="line"></span><br><span class="line">       &#x2F;&#x2F;math.max(maxNeeded, minNumExecutors)与numExecutorsTarget且maxNeeded &lt; numExecutorsTarget</span><br><span class="line">      if (numExecutorsTarget &lt; oldNumExecutorsTarget) &#123;</span><br><span class="line">        &#x2F;&#x2F; We lower the target number of executors but don&#39;t actively kill any yet.  Killing is</span><br><span class="line">        &#x2F;&#x2F; controlled separately by an idle timeout.  It&#39;s still *helpful* to reduce the target number</span><br><span class="line">        &#x2F;&#x2F; in case an executor just happens to get lost (eg., bad hardware, or the cluster manager</span><br><span class="line">        &#x2F;&#x2F; preempts it) -- in that case, there is no point in trying to immediately  get a new</span><br><span class="line">        &#x2F;&#x2F; executor, since we wouldn&#39;t even use it yet.</span><br><span class="line">        &#x2F;&#x2F;同步当前需要的 executor 数量给 cm</span><br><span class="line">        client.requestTotalExecutors(numExecutorsTarget, localityAwareTasks, hostToLocalTaskCount)</span><br><span class="line">        logDebug(s&quot;Lowering target number of executors to $numExecutorsTarget (previously &quot; +</span><br><span class="line">          s&quot;$oldNumExecutorsTarget) because not all requested executors are actually needed&quot;)</span><br><span class="line">      &#125;</span><br><span class="line">      numExecutorsTarget - oldNumExecutorsTarget</span><br><span class="line">    &#125; else if (addTime !&#x3D; NOT_SET &amp;&amp; now &gt;&#x3D; addTime) &#123;</span><br><span class="line">    &#x2F;&#x2F;在 application 已经开始运行,申请过资源;且当前计算出来的需要的 executor 数量大于已有的 executor 数量;且任务已经被积压过(onSchedulerBacklogged事件会设置 add_time)那么会申请 executor</span><br><span class="line">      val delta &#x3D; addExecutors(maxNeeded)</span><br><span class="line">      logDebug(s&quot;Starting timer to add more executors (to &quot; +</span><br><span class="line">        s&quot;expire in $sustainedSchedulerBacklogTimeoutS seconds)&quot;)</span><br><span class="line">      addTime &#x3D; now + (sustainedSchedulerBacklogTimeoutS * 1000)</span><br><span class="line">      delta</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      0</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  &#x2F;&#x2F;依据当前stage正在运行的task数量和堆积的task数量来预估需要的executor数量</span><br><span class="line">  &#x2F;&#x2F;之所以是当前 stage,是因为onStageSubmitted和onStageCompleted方法会维护stageIdToNumTasks(hashmap),所以这个 map 里面存储的是DAG中无依赖关系的 stage-tasknum 数据</span><br><span class="line">   private def maxNumExecutorsNeeded(): Int &#x3D; &#123;</span><br><span class="line">    val numRunningOrPendingTasks &#x3D; listener.totalPendingTasks + listener.totalRunningTasks</span><br><span class="line">    (numRunningOrPendingTasks + tasksPerExecutor - 1) &#x2F; tasksPerExecutor</span><br><span class="line">  &#125;</span><br><span class="line">&#x2F;&#x2F;申请 executor.如果当前需要的资源数超过动态最大资源数,该次不申请并且将 numExecutorsToAdd(申请 executor 的滚动增量)设置为1,而不是乘以2.</span><br><span class="line">&#x2F;&#x2F;numExecutorsToAdd:1-&gt;2-&gt;4-&gt;8-&gt;1(已持有的数量不小于动态最大数量,则没必要需要太快的增速)-&gt;2-&gt;4</span><br><span class="line">private def addExecutors(maxNumExecutorsNeeded: Int): Int &#x3D; &#123;</span><br><span class="line">    &#x2F;&#x2F; Do not request more executors if it would put our target over the upper bound</span><br><span class="line">    if (numExecutorsTarget &gt;&#x3D; maxNumExecutors) &#123;</span><br><span class="line">      logDebug(s&quot;Not adding executors because our current target total &quot; +</span><br><span class="line">        s&quot;is already $numExecutorsTarget (limit $maxNumExecutors)&quot;)</span><br><span class="line">      numExecutorsToAdd &#x3D; 1</span><br><span class="line">      return 0</span><br><span class="line">    &#125;</span><br><span class="line">	</span><br><span class="line">    val oldNumExecutorsTarget &#x3D; numExecutorsTarget</span><br><span class="line">    &#x2F;&#x2F; There&#39;s no point in wasting time ramping up to the number of executors we already have, so</span><br><span class="line">    &#x2F;&#x2F; make sure our target is at least as much as our current allocation:</span><br><span class="line">    numExecutorsTarget &#x3D; math.max(numExecutorsTarget, executorIds.size)</span><br><span class="line">    &#x2F;&#x2F; Boost our target with the number to add for this round:   滚动增量</span><br><span class="line">    numExecutorsTarget +&#x3D; numExecutorsToAdd</span><br><span class="line">    &#x2F;&#x2F; Ensure that our target doesn&#39;t exceed what we need at the present moment:</span><br><span class="line">    numExecutorsTarget &#x3D; math.min(numExecutorsTarget, maxNumExecutorsNeeded)</span><br><span class="line">    &#x2F;&#x2F; Ensure that our target fits within configured bounds:</span><br><span class="line">    numExecutorsTarget &#x3D; math.max(math.min(numExecutorsTarget, maxNumExecutors), minNumExecutors)</span><br><span class="line"></span><br><span class="line">    val delta &#x3D; numExecutorsTarget - oldNumExecutorsTarget</span><br><span class="line">    if (delta &#x3D;&#x3D; 0) &#123;</span><br><span class="line">      &#x2F;&#x2F; Check if there is any speculative jobs pending</span><br><span class="line">      if (listener.pendingTasks &#x3D;&#x3D; 0 &amp;&amp; listener.pendingSpeculativeTasks &gt; 0) &#123;</span><br><span class="line">        numExecutorsTarget &#x3D;</span><br><span class="line">          math.max(math.min(maxNumExecutorsNeeded + 1, maxNumExecutors), minNumExecutors)</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">        numExecutorsToAdd &#x3D; 1</span><br><span class="line">        return 0</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    val addRequestAcknowledged &#x3D; try &#123;</span><br><span class="line">      testing ||</span><br><span class="line">        client.requestTotalExecutors(numExecutorsTarget, localityAwareTasks, hostToLocalTaskCount)</span><br><span class="line">    &#125; catch &#123;</span><br><span class="line">        ....</span><br><span class="line">        false</span><br><span class="line">    &#125;</span><br><span class="line">    if (addRequestAcknowledged) &#123;</span><br><span class="line">      val executorsString &#x3D; &quot;executor&quot; + &#123; if (delta &gt; 1) &quot;s&quot; else &quot;&quot; &#125;</span><br><span class="line">      logInfo(s&quot;Requesting $delta new $executorsString because tasks are backlogged&quot; +</span><br><span class="line">        s&quot; (new desired total will be $numExecutorsTarget)&quot;)</span><br><span class="line">      numExecutorsToAdd &#x3D; if (delta &#x3D;&#x3D; numExecutorsToAdd) &#123;</span><br><span class="line">        numExecutorsToAdd * 2</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">        1</span><br><span class="line">      &#125;</span><br><span class="line">      delta</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      logWarning(</span><br><span class="line">        s&quot;Unable to reach the cluster manager to request $numExecutorsTarget total executors!&quot;)</span><br><span class="line">      numExecutorsTarget &#x3D; oldNumExecutorsTarget</span><br><span class="line">      0</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>资源申请</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[YarnSchedulerBackend.scala]</span><br><span class="line">override def doRequestTotalExecutors(requestedTotal: Int): Future[Boolean] &#x3D; &#123;</span><br><span class="line">    yarnSchedulerEndpointRef.ask[Boolean](prepareRequestExecutors(requestedTotal))</span><br><span class="line"> &#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="ExecutorAllocationListener"><a href="#ExecutorAllocationListener" class="headerlink" title="ExecutorAllocationListener"></a>ExecutorAllocationListener</h2><p>ExecutorAllocationListener监听器监听各类事件,触发相应的回调函数,对自身以及ExecutorAllocationManager 内维护的信息做修改,辅助 ExecutorAllocationManager 做动态资源调度.看一些回调函数的源码:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line">   * Callback invoked when the specified executor has been added.</span><br><span class="line">   *&#x2F;</span><br><span class="line">private def onExecutorAdded(executorId: String): Unit &#x3D; synchronized &#123;</span><br><span class="line">    if (!executorIds.contains(executorId)) &#123;</span><br><span class="line">      executorIds.add(executorId)</span><br><span class="line">      &#x2F;&#x2F; If an executor (call this executor X) is not removed because the lower bound</span><br><span class="line">      &#x2F;&#x2F; has been reached, it will no longer be marked as idle. When new executors join,</span><br><span class="line">      &#x2F;&#x2F; however, we are no longer at the lower bound, and so we must mark executor X</span><br><span class="line">      &#x2F;&#x2F; as idle again so as not to forget that it is a candidate for removal. (see SPARK-4951)</span><br><span class="line">      executorIds.filter(listener.isExecutorIdle).foreach(onExecutorIdle)</span><br><span class="line">      logInfo(s&quot;New executor $executorId has registered (new total is $&#123;executorIds.size&#125;)&quot;)</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      logWarning(s&quot;Duplicate executor $executorId has registered&quot;)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  private def onExecutorRemoved(executorId: String): Unit &#x3D; synchronized &#123;</span><br><span class="line">    if (executorIds.contains(executorId)) &#123;</span><br><span class="line">      executorIds.remove(executorId)</span><br><span class="line">      removeTimes.remove(executorId)</span><br><span class="line">      logInfo(s&quot;Existing executor $executorId has been removed (new total is $&#123;executorIds.size&#125;)&quot;)</span><br><span class="line">      if (executorsPendingToRemove.contains(executorId)) &#123;</span><br><span class="line">        executorsPendingToRemove.remove(executorId)</span><br><span class="line">        logDebug(s&quot;Executor $executorId is no longer pending to &quot; +</span><br><span class="line">          s&quot;be removed ($&#123;executorsPendingToRemove.size&#125; left)&quot;)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      logWarning(s&quot;Unknown executor $executorId has been removed!&quot;)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  private def onSchedulerBacklogged(): Unit &#x3D; synchronized &#123;</span><br><span class="line">    if (addTime &#x3D;&#x3D; NOT_SET) &#123;</span><br><span class="line">      logDebug(s&quot;Starting timer to add executors because pending tasks &quot; +</span><br><span class="line">        s&quot;are building up (to expire in $schedulerBacklogTimeoutS seconds)&quot;)</span><br><span class="line">      addTime &#x3D; clock.getTimeMillis + schedulerBacklogTimeoutS * 1000</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  private def onExecutorIdle(executorId: String): Unit &#x3D; synchronized &#123;</span><br><span class="line">    if (executorIds.contains(executorId)) &#123;</span><br><span class="line">      if (!removeTimes.contains(executorId) &amp;&amp; !executorsPendingToRemove.contains(executorId)) &#123;</span><br><span class="line">        val hasCachedBlocks &#x3D; blockManagerMaster.hasCachedBlocks(executorId)</span><br><span class="line">        val now &#x3D; clock.getTimeMillis()</span><br><span class="line">        val timeout &#x3D; &#123;</span><br><span class="line">          if (hasCachedBlocks) &#123;	&#x2F;&#x2F;缓存了数据,shuffle write 数据等</span><br><span class="line">            now + cachedExecutorIdleTimeoutS * 1000</span><br><span class="line">          &#125; else &#123;</span><br><span class="line">            now + executorIdleTimeoutS * 1000</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        val realTimeout &#x3D; if (timeout &lt;&#x3D; 0) Long.MaxValue else timeout &#x2F;&#x2F; overflow</span><br><span class="line">        removeTimes(executorId) &#x3D; realTimeout</span><br><span class="line">        logDebug(s&quot;Starting idle timer for $executorId because there are no more tasks &quot; +</span><br><span class="line">          s&quot;scheduled to run on the executor (to expire in $&#123;(realTimeout - now)&#x2F;1000&#125; seconds)&quot;)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      logWarning(s&quot;Attempted to mark unknown executor $executorId idle&quot;)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  private def onExecutorBusy(executorId: String): Unit &#x3D; synchronized &#123;</span><br><span class="line">    logDebug(s&quot;Clearing idle timer for $executorId because it is now running a task&quot;)</span><br><span class="line">    removeTimes.remove(executorId)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h2><blockquote>
+</blockquote>
+<p>动态资源调度设计的一点思考</p>
+<ol>
+<li>如何增加资源<br> 负载与当前资源的权衡;资源增加算法:线性增加,对数等;资源快速满足需求快速下降  </li>
+<li>如何释放资源<br> 如何判断空闲;资源上有不好处理的逻辑怎么办,数据或计算   </li>
+<li>设计模式<br> 事件驱动的设计模式  </li>
+<li>解耦的重要性<br> 曾经设计过一个主从式数据处理框架,但是在可拓展性上考虑的比较少.如果现在在那个系统上增加动态资源调度功能,在设计模式和解耦上比不上 spark 之万一…  </li>
+</ol>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p> <a href="http://spark.apache.org/docs/2.3.1/configuration.html" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/configuration.html</a><br> <a href="http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service</a>  </p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
+              <a href="/tags/Spark-2-3-0/" rel="tag"># Spark 2.3.0</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2019-09-15-Yarn:movetoqueue%E5%AF%BC%E8%87%B4%E7%9A%84UIcontainer%E6%B3%84%E9%9C%B2%E9%97%AE%E9%A2%98%E7%9A%84%E4%BF%AE%E5%A4%8D%E6%80%9D%E8%B7%AF/" rel="next" title="Yarn movetoqueue 导致的UI指标错误的修复思路">
+      Yarn movetoqueue 导致的UI指标错误的修复思路 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#摘要"><span class="nav-number">1.</span> <span class="nav-text">摘要</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#背景"><span class="nav-number">2.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#开启方法"><span class="nav-number">3.</span> <span class="nav-text">开启方法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Cluster"><span class="nav-number">3.1.</span> <span class="nav-text">Cluster</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Application"><span class="nav-number">3.2.</span> <span class="nav-text">Application</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#配置参数"><span class="nav-number">3.3.</span> <span class="nav-text">配置参数</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#源码解析"><span class="nav-number">4.</span> <span class="nav-text">源码解析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ExecutorAllocationListener"><span class="nav-number">5.</span> <span class="nav-text">ExecutorAllocationListener</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#其他"><span class="nav-number">6.</span> <span class="nav-text">其他</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考"><span class="nav-number">7.</span> <span class="nav-text">参考</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">List</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jiulong.zhu@gmail.com" title="E-Mail → mailto:jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">List</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong-zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2019-08-09-ExecutorAllocationManager/",
+            identifier: "2019-08-09-ExecutorAllocationManager/",
+            title: "ExecutorAllocationManager源码分析"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

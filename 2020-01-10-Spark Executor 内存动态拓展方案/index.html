@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="概述Spark Application 提交之后 Executor 内存被固定，业务环境上的长流程或长时处理任务经常由于 Executor 内存不足失败，导致人工干预、流程延迟且 Application 级恢复成本比较高。这种情况下，希望有套机制能够在 Executor 失败后再申请更大内存的 Executor 、对 Task 层面有更好的容错，在一定程度上减少 Task 由内存不足失败导致的 A">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark Executor 内存动态扩展方案">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88&#x2F;index.html">
+<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:description" content="概述Spark Application 提交之后 Executor 内存被固定，业务环境上的长流程或长时处理任务经常由于 Executor 内存不足失败，导致人工干预、流程延迟且 Application 级恢复成本比较高。这种情况下，希望有套机制能够在 Executor 失败后再申请更大内存的 Executor 、对 Task 层面有更好的容错，在一定程度上减少 Task 由内存不足失败导致的 A">
+<meta property="article:published_time" content="2020-01-09T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-03-16T10:01:28.112Z">
+<meta property="article:author" content="List">
+<meta property="article:tag" content="Spark 2.3">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>Spark Executor 内存动态扩展方案 | List's Blog</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">List's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">李斯特</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Spark Executor 内存动态扩展方案
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-01-10 00:00:00" itemprop="dateCreated datePublished" datetime="2020-01-10T00:00:00+08:00">2020-01-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-01-10-Spark Executor 内存动态拓展方案/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>Spark Application 提交之后 Executor 内存被固定，业务环境上的长流程或长时处理任务经常由于 Executor 内存不足失败，导致人工干预、流程延迟且 Application 级恢复成本比较高。这种情况下，希望有套机制能够在 Executor 失败后再申请更大内存的 Executor 、对 Task 层面有更好的容错，在一定程度上减少 Task 由内存不足失败导致的 Application 失败恢复和人工干预成本。  </p>
+<a id="more"></a>
+
+<p>前置条件:   </p>
+<ol>
+<li>Spark On Yarn  </li>
+<li>开启动态资源分配(spark.dynamicAllocation.enabled)  </li>
+</ol>
+<h2 id="调度流程"><a href="#调度流程" class="headerlink" title="调度流程"></a>调度流程</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line"></span><br><span class="line">RDD#action -&gt;&gt; SparkContext : 1.runJob(rdd,func,partitions,resultHandler)</span><br><span class="line">SparkContext -&gt;&gt; DAGScheduler : 2. submitJob(rdd,func,partitions,resultHandler)</span><br><span class="line">DAGScheduler -&gt;&gt; DAGScheduler : 3. JobSubmitted &amp;&amp; createResultStage &amp;&amp; getOrCreateParentStages &amp;&amp; submitStages &amp;&amp; submitMissingTasks</span><br><span class="line">DAGScheduler -&gt;&gt; TaskScheduler : 4.submitTasks(createTaskSet)</span><br><span class="line">TaskScheduler -&gt;&gt; SchedulerBackEnd : 5.reviveOffers</span><br><span class="line"></span><br><span class="line">loop period &amp; event</span><br><span class="line">	SchedulerBackEnd -&gt;&gt; TaskScheduler : 6.makeOffers &amp;&amp; resourceOffers</span><br><span class="line">	Driver -&gt;&gt; Executor : 7.LaunchTask</span><br><span class="line">end</span><br><span class="line">SchedulerBackEnd --&gt;&gt; - RDD#action : 8. statusUpdate &amp;&amp; callBack</span><br></pre></td></tr></table></figure>
+
+<h2 id="主要思路"><a href="#主要思路" class="headerlink" title="主要思路"></a>主要思路</h2><ol>
+<li>Container(或 Executor) 由于内存超限被杀死的原因有两个: 物理内存(-104,137)/虚拟内存(-103,137)超限被 Yarn 资源监控线程杀死；堆内存 OOM 导致 JVM 进程被 kill，退出码是 143。退出码的不同决定了要增加的内存配置不同: -104,-103 和 137需要增加 Container 整体内存；143 需要增加堆内存。(YarnAllocator#allocateResource 拿到 Yarn 新分配的 container 和正常及异常退出的 container)   </li>
+<li>内存拓展的 Executor 启动参数修改: Executor 内存提升次数(默认0)，堆内存，全内存。主要用于 Executor 向 Driver 注册时标识自身的特征，该特征可以使 TaskScheduler将 OOM Task 调度到该 Executor。(YarnAllocator#allocator 拿到 Yarn 新分配的 container,ExecutorRunnable,CoarseGrainedExecutorBackend,RegisterExecutor 数据结构修改)    </li>
+<li>内存拓展的 Executor 注册/注销 -&gt;&gt; 额外维护的可运行 OOM Task 的 Executor 列表更新，ExecutorAdd、ExecutorLost、KillExecutor 等。(CoarseGrainedSchedulerBackEnd,ExecutorId和[提升次数,堆内存,全内存]的映射,提升次数和 ExecutorId 集合的映射)      </li>
+<li>普通 Task, OOM Task 失败的处理 -&gt;&gt; OOM Task失败则必须调度到内存拓展过的 Executor，已经在内存拓展过的 Executor 失败的 OOM Task 后要调度到更大或当前最大内存的 Executor，非 OOM 失败的 task 走现有容错调度(TaskSchedulerImpl)  </li>
+<li>大内存 ExecutorLost -&gt;&gt; 根据维护的ExecutorId 和[提升次数,堆内存,全内存]映射及 Container 退出码及内存拓展算法来决定下一次申请的 ContainerResource和 JVM 启动的 XMX    </li>
+<li>因动态资源分配功能超时退出 或 Yarn 抢占导致的 ExecutorLost在 YarnAllocator 使用大根堆或 最大值来记录资源信息,在下一次申请时不通过内存提升算法。   </li>
+<li>OOM Task 容错: OOM Task 加入到一个特定的 pending 队列,以和普通错误 Task 做区分。TaskScheduler/ExecutorAdd/TaskCompletion 触发的 reviveOffer时,优先从特定 pending 队列调度 判断 ExecutorId 能否可能支撑该 Task(原所属失败的 Executor 提升内存次数必须小于当前 ExecutorId 提升内存次数)。若能则调度,若不能则不调度该任务,调度普通 pending 队列。  </li>
+<li>动态资源分配使用 running tasks和 pending tasks 及 spark.task.cores 来推测需要的总 Executor 数量。在系统的某时刻，可能有 OOM Task 但是却无内存拓展过的 Executor,推测可能也不需要新的 Executor。即: 当有 OOM Task 却无拓展内存的 Executor 时,需要在 CoarseGrainedSchedulerBackend 通过 ExecutorAllocationClient 的 requestTotalExecutor/requestExecutor 接口来触发申请 Executor。数量为 Max{当前 Executor数量/5,1},取 Max 是为了增加本地化可能性，多申请的资源由动态资源分配来管理。    </li>
+<li>YarnAllocator 维护的状态需要有复原功能: OOM 时下一批次申请的 Executor 都是拓展过内存的，随后复原，以适配动态资源分配功能。YarnAllocator 取消堆积在 RM 的 ResourceRequest 时,优先取消没有拓展过内存的,不足则取消拓展过内存的 ResourceRequest。  </li>
+</ol>
+<h2 id="Task-失败处理线"><a href="#Task-失败处理线" class="headerlink" title="Task 失败处理线"></a>Task 失败处理线</h2><ol>
+<li>DriverEndPoint 首先接收到任务 StatusUpdate 事件转交由 CoarseGrainedSchedulerBackEnd 处理  </li>
+<li>CoarseGrainedSchedulerBackEnd 交由 TaskSchedulerImpl 处理 StatusUpdate 事件  </li>
+<li>TaskSchedulerImpl 解析 StatusUpdate 事件的任务状态,并判断其成功/失败，若失败则需要交由 TaskSetManager 维护状态，加入到特定的失败堆积队列  </li>
+<li>a.若此时全局无大内存 Executor，则需要绕过动态资源分配主动申请大内存 Executor，但此时全局无大内存 Executor 故暂不处理当前 OOM Task。 b.若有则阶梯式分配 OOM Task: 判断原有运行该 Task 的 Executor 提升次数，将失败任务分配到更高/最高提升次数的 Executor 上。若原有运行 Executor 内存已经最大，则依据加内存次数抛出异常终止 Application 或主动申请更大内存 Executor，暂不处理当前 OOM Task([3G,4G,5G] 3G上失败任务可指派给最高阶梯 5G,也可以指派给较高阶梯 4G)。  </li>
+<li>对某个 Executor 分配任务(TaskCompletion/ExecutorAdd)时，对 Executor 进行判断，在内存满足的情况下，优先分配特定失败堆积队列的任务，再指派 TaskSetManager 中普通任务或 pending 任务。 </li>
+</ol>
+<h2 id="Executor-失败处理线"><a href="#Executor-失败处理线" class="headerlink" title="Executor 失败处理线"></a>Executor 失败处理线</h2><p>基于 AM 和 RM 资源申请模式，AM updateResourceRequest 更新最新 ResourceRequest 给 RM，RM 响应 AM 的 allocateResource 请求通知新分配的 container,正常异常退出的 container。由此 AM 在新分配的 container 上启动新的 Executor，判断退出的 container 的退出码确定退出原因   </p>
+<ol>
+<li>YarnAllocator 判断容器退出原因，若为 Yarn 抢占或 AM 主动杀死则记录到最大堆中，若为内存问题则使用内存拓展算法计算出下一次 updateResourceRequest 时 Container 配置、 Jvm 配置和内存拓展次数    </li>
+<li>动态资源分配或主动申请容器时 判断是否需要提升内存，若是则通过 updateResourceRequest 来修改;若否则使用大跟堆中的配置  </li>
+<li>动态资源分配当当前需要的 Executor 总量低于已有量时，取消 ResourceRequest 优先取消普通内存配置的 ResourceRequest，不足则取消内存拓展过的 Executor </li>
+</ol>
+<h2 id="内存增加算法"><a href="#内存增加算法" class="headerlink" title="内存增加算法"></a>内存增加算法</h2><ol>
+<li>需要考虑 Yarn 规整(申请的 Container Resource 会被规整到 yarn.scheduler.minimum-allocation-mb 的整数倍)； </li>
+<li>增加 Container 整体资源量时需要按比例分配(堆内:堆外默认为 10:1,可适当修改)；  </li>
+<li>从低内存跃迁至高内存的次数不能太大,即提升快然后迅速收敛以降低中间的失败尝试次数，可选择初始高增量快速降低的方式(e.g. 对数或固定系数，第一次提升0.5,第二次0.3,第三次 0.1,超出最大允许拓展次数后如果OOM 则快速抛出异常终止任务人为干预)。  </li>
+</ol>
+<h2 id="附录"><a href="#附录" class="headerlink" title="附录"></a>附录</h2><p>DAGScheduler 处理的事件类型:    </p>
+<ul>
+<li>JobSubmitted   </li>
+<li>JobCancelled  </li>
+<li>JobGroupCancelled  </li>
+<li>AllJobsCancelled  </li>
+<li>MapStageSubmitted   </li>
+<li>ResubmitFailedStages  </li>
+<li>StageCancelled  </li>
+<li>ExecutorAdded  </li>
+<li>ExecutorLost  </li>
+<li>WorkerRemoved  </li>
+<li>TaskSetFailed  </li>
+<li>BeginEvent   </li>
+<li>CompletionEvent </li>
+<li>SpeculativeTaskSubmitted  </li>
+<li>GettingResultEvent     </li>
+</ul>
+<p>CoarseGrainedSchedulerBackEnd(Driver) 处理的事件类型:   </p>
+<ul>
+<li>RegisterExecutor  </li>
+<li>StopDriver  </li>
+<li>StopExecutors  </li>
+<li>RemoveWorker  </li>
+<li>RetrieveSparkAppConfig    </li>
+<li>StatusUpdate  </li>
+<li>ReviveOffers  </li>
+<li>KillTask  </li>
+<li>KillExecutorsOnHost  </li>
+<li>UpdateDelegationTokens  </li>
+<li>RemoveExecutor  </li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Spark-2-3/" rel="tag"># Spark 2.3</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019-12-27-Apache%20Spark%203.0%20Preview%20%E6%96%B0%E7%89%B9%E6%80%A7%E5%92%8C%E6%94%B9%E5%8A%A8/" rel="prev" title="Apache Spark 3.0 Preview 新特性和改动">
+      <i class="fa fa-chevron-left"></i> Apache Spark 3.0 Preview 新特性和改动
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020-02-23-Maven%20%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/" rel="next" title="Maven 常用命令">
+      Maven 常用命令 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#概述"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#调度流程"><span class="nav-number">2.</span> <span class="nav-text">调度流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主要思路"><span class="nav-number">3.</span> <span class="nav-text">主要思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Task-失败处理线"><span class="nav-number">4.</span> <span class="nav-text">Task 失败处理线</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Executor-失败处理线"><span class="nav-number">5.</span> <span class="nav-text">Executor 失败处理线</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#内存增加算法"><span class="nav-number">6.</span> <span class="nav-text">内存增加算法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#附录"><span class="nav-number">7.</span> <span class="nav-text">附录</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">List</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jiulong.zhu@gmail.com" title="E-Mail → mailto:jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">List</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong-zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88/",
+            identifier: "2020-01-10-Spark Executor 内存动态拓展方案/",
+            title: "Spark Executor 内存动态扩展方案"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

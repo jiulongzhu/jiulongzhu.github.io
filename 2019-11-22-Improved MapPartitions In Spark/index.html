@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="概述map 和 mapPartitions 是 Spark 中最常用的 ETL 算子，用于将数据映射为另一批数据。区别在于,    数据粒度: map 输入和输出数据都是单条记录，严格的一对一关系。mapPartitions 输入和输出数据都是一个分区的数据迭代器, n 对 m 关系。   功能: mapPartitions 功能远强于 map,其一 mapPartitions 可以在映射过程中做">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Improved MapPartitions In Spark">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-11-22-Improved%20MapPartitions%20In%20Spark&#x2F;index.html">
+<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:description" content="概述map 和 mapPartitions 是 Spark 中最常用的 ETL 算子，用于将数据映射为另一批数据。区别在于,    数据粒度: map 输入和输出数据都是单条记录，严格的一对一关系。mapPartitions 输入和输出数据都是一个分区的数据迭代器, n 对 m 关系。   功能: mapPartitions 功能远强于 map,其一 mapPartitions 可以在映射过程中做">
+<meta property="article:published_time" content="2019-11-21T16:00:00.000Z">
+<meta property="article:modified_time" content="2019-12-11T16:09:30.065Z">
+<meta property="article:author" content="List">
+<meta property="article:tag" content="Spark 2.3.0">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2019-11-22-Improved%20MapPartitions%20In%20Spark/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>Improved MapPartitions In Spark | List's Blog</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">List's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">李斯特</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-11-22-Improved%20MapPartitions%20In%20Spark/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Improved MapPartitions In Spark
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-11-22 00:00:00" itemprop="dateCreated datePublished" datetime="2019-11-22T00:00:00+08:00">2019-11-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-12-12 00:09:30" itemprop="dateModified" datetime="2019-12-12T00:09:30+08:00">2019-12-12</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-11-22-Improved%20MapPartitions%20In%20Spark/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-11-22-Improved MapPartitions In Spark/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>map 和 mapPartitions 是 Spark 中最常用的 ETL 算子，用于将数据映射为另一批数据。区别在于,  </p>
+<ol>
+<li>数据粒度: map 输入和输出数据都是单条记录，严格的一对一关系。mapPartitions 输入和输出数据都是一个分区的数据迭代器, n 对 m 关系。  </li>
+<li>功能: mapPartitions 功能远强于 map,其一 mapPartitions 可以在映射过程中做诸如过滤的额外操作，其二在需要创建重量级对象(e.g. 数据库连接)的场景下 mapPartitions 比 map 操作更合适。 </li>
+<li>性能: 性能上无明显差异。一般将分区输出数据先存储在内存数据结构中,结束后转成迭代器形式。在内存中存储数据这种方式可能会导致 OOM，但是有方法避免，这是本文的价值点。     </li>
+</ol>
+<a id="more"></a>
+
+<p>foreach 和 foreachPartition 的关系/用法类似 map 和mapPartitions,区别在 foreach(Partition)是 action 算子而 map(Partitions)是 transformer 算子。  </p>
+<h2 id="mapPartitions-一般用法"><a href="#mapPartitions-一般用法" class="headerlink" title="mapPartitions 一般用法"></a>mapPartitions 一般用法</h2><p>mapPartitions[V] 的输入参数是 f:(Iterator[U]=&gt;Iterator[V]) 使RDD[U]映射为 RDD[V]<br>一般用法是在每个分区内维护一个内存数据结构 暂存输出数据，使用输入数据迭代器遍历输入数据处理得到输出数据加入到内存数据结构中，处理完毕后将内存数据结构转换为输出数据迭代器。   </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">val rdd:RDD[Int] &#x3D; ?</span><br><span class="line">rdd.mapPartitions(it&#x3D;&gt;&#123;</span><br><span class="line">      val buffer &#x3D; new ArrayBuffer[Int](64)</span><br><span class="line">      while(it.hasNext)&#123;</span><br><span class="line">        val next &#x3D; it.next()</span><br><span class="line">        if(???)&#123;</span><br><span class="line">          buffer.+&#x3D;(doSomething(next))</span><br><span class="line">        &#125;else&#123;</span><br><span class="line">          &#x2F;&#x2F; abort</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      buffer.iterator</span><br><span class="line">    &#125;)</span><br></pre></td></tr></table></figure>
+<p>优点在于使用简便，缺点在于内存数据结构在数据量大时容易 OOM。  </p>
+<h2 id="场景"><a href="#场景" class="headerlink" title="场景"></a>场景</h2><p>使用 Spark 向数据库(mongodb)中写入数据时有量级不小的错误，需要将存储失败的数据另存。  </p>
+<p>难点:   </p>
+<ol>
+<li>数据库的并发度支持不高,且其他业务也需要占用部分连接。所以最终 RDD 的分区数不能太大，进而导致单分区内数据很大。     </li>
+<li>单分区内数据很大，插入数据库的失败数据也很多，需要将失败数据转存到其他存储。大量失败数据维护在内存中容易导致 OOM。  </li>
+</ol>
+<h2 id="improved-mapPartitions-1"><a href="#improved-mapPartitions-1" class="headerlink" title="improved mapPartitions 1"></a>improved mapPartitions 1</h2><p>切入点在于 mapPartitions 参数是一个 迭代器向迭代器的映射函数<br>以下代码为伪代码，仅作为模板使用   </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">&#x2F;**</span><br><span class="line">  * record by record 式的处理输入数据。</span><br><span class="line">  * @param srcDataIterator 输入数据迭代器</span><br><span class="line">  * @tparam T</span><br><span class="line">  *&#x2F;</span><br><span class="line">class TransformSaveDataIterator[T](srcDataIterator:Iterator[T]) extends Iterator[(T,Boolean)]&#123;</span><br><span class="line"> &#x2F;&#x2F; 重量级对象最好在类内部维护，避免 driver-&gt;executor 序列化问题</span><br><span class="line">  lazy val connection &#x3D; createOrGetFromPoll()</span><br><span class="line">  override def hasNext: Boolean &#x3D; &#123;</span><br><span class="line">    if(srcDataIterator.hasNext)&#123;</span><br><span class="line">      return true</span><br><span class="line">    &#125;else&#123;</span><br><span class="line">      closeResource()</span><br><span class="line">      return false</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  override def next(): (T, Boolean) &#x3D; &#123;</span><br><span class="line">    val next:T &#x3D; srcDataIterator.next()</span><br><span class="line">    val result:Boolean &#x3D; connectResource.doSave()  &#x2F;&#x2F; try &#123;doSomething;return true&#125; catch &#123;return false&#125;</span><br><span class="line">    (next, result)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  private def closeResource(): Unit &#x3D;&#123;</span><br><span class="line">    if(connectResource !&#x3D; null &amp;&amp; connectResource.isActive())&#123;</span><br><span class="line">      connectResource.commit()</span><br><span class="line">      connectResource.close()</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>优点在于解决了 OOM 问题，缺点在于需要 record by record 式处理数据，效率低下对于支持 batch 的数据库而言未能充分利用   </p>
+<h2 id="improved-mapPartitions-2"><a href="#improved-mapPartitions-2" class="headerlink" title="improved mapPartitions 2"></a>improved mapPartitions 2</h2><p>切入点借鉴 Spark Streaming 的 mini-batch，将输入数据的迭代器 slice 为多个，每个 slice 整批插入数据库中以利用 batch 功能并同时保存 slice 迭代器和事务执行结果。记录下所有输入数据的数量，当返回数据数量不大于该值时 可返回数据。每个 slice 内迭代器数据迭代完之后，切换为下一个迭代器直到返回数据量等于输入数据总量。<br>以下代码为伪代码，仅作为模板使用 </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">&#x2F;**</span><br><span class="line">  * buffer 式处理输入数据</span><br><span class="line">  * @param srcDataIterator 输入数据迭代器</span><br><span class="line">  * @tparam T</span><br><span class="line">  *&#x2F;</span><br><span class="line">class TransformBufferedSaveIterator[T](srcDataIterator:Iterator[T]) extends Iterator[(T,Boolean)]&#123;</span><br><span class="line">  lazy val connection &#x3D; createOrGetFromPoll()</span><br><span class="line">  val BUFFER_SIZE &#x3D; 2048</span><br><span class="line">  lazy val buffer:ArrayBuffer[(Iterator[T],Boolean)] &#x3D; new ArrayBuffer[(Iterator[T],Boolean)](128)</span><br><span class="line">  var dataCnt:Int &#x3D; 0  &#x2F;&#x2F; total input data count</span><br><span class="line">  var returnedCnt:Int &#x3D; 0  &#x2F;&#x2F; already returned data count</span><br><span class="line">  val trigger &#x3D; new AtomicBoolean(true)</span><br><span class="line">  var bufferIterator:Iterator[(Iterator[T],Boolean)] &#x3D; null</span><br><span class="line">  var curIterator:(Iterator[T],Boolean) &#x3D; null</span><br><span class="line"></span><br><span class="line">  override def hasNext: Boolean &#x3D; &#123;</span><br><span class="line">    if(trigger.get())&#123;</span><br><span class="line">      while(dataCnt &lt; srcDataIterator.length)&#123;</span><br><span class="line">        val slice:Iterator[T] &#x3D; srcDataIterator.slice(dataCnt, dataCnt+BUFFER_SIZE)</span><br><span class="line">        dataCnt +&#x3D;slice.length</span><br><span class="line">        val result:Boolean &#x3D; doSave(slice)</span><br><span class="line">        &#x2F;&#x2F; new iterator or reverse iterator</span><br><span class="line">        val traversableSlice &#x3D; slice.slice(0, BUFFER_SIZE)</span><br><span class="line">        buffer.+&#x3D;:((traversableSlice,result))</span><br><span class="line">      &#125;</span><br><span class="line">      closeResource()</span><br><span class="line">      bufferIterator &#x3D; buffer.iterator</span><br><span class="line">      trigger.set(false)</span><br><span class="line">    &#125;</span><br><span class="line">    returnedCnt &lt; dataCnt</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  override def next(): (T, Boolean) &#x3D; &#123;</span><br><span class="line">    if(curIterator!&#x3D;null &amp;&amp; curIterator._1.hasNext)&#123;</span><br><span class="line">      dataCnt +&#x3D; 1</span><br><span class="line">      return (curIterator._1.next(),curIterator._2)</span><br><span class="line">    &#125;else&#123;</span><br><span class="line">     &#x2F;&#x2F; bufferIterator 最后一个 iterator 不会调用 next(此时hasNext()&#x3D;false)</span><br><span class="line">      curIterator &#x3D; bufferIterator.next()</span><br><span class="line">      next()</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  def doSave(it:Iterator[T]): Boolean &#x3D;&#123;</span><br><span class="line">    try&#123;</span><br><span class="line">      doSomething()</span><br><span class="line">      connectResource.commit()</span><br><span class="line">      buffer.clear()</span><br><span class="line">      return true</span><br><span class="line">    &#125;catch&#123;</span><br><span class="line">      case e:Exception &#x3D;&gt;&#123;</span><br><span class="line">        return false</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  private def closeResource(): Unit &#x3D;&#123;</span><br><span class="line">    if(connectResource !&#x3D; null &amp;&amp; connectResource.isActive())&#123;</span><br><span class="line">      connectResource.commit()</span><br><span class="line">      connectResource.close()</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="SimpleTestCase"><a href="#SimpleTestCase" class="headerlink" title="SimpleTestCase"></a>SimpleTestCase</h2><p>分别使用 improved mapPartitions 1 和 improved mapPartitions 2 做测试样例</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">object ImprovedMapPartition &#123;</span><br><span class="line"></span><br><span class="line">  def main(args: Array[String]): Unit &#x3D; &#123;</span><br><span class="line">    val spark &#x3D; SparkSession.builder().appName(&quot;&quot;).master(&quot;&quot;).config(&quot;&quot;,&quot;&quot;).getOrCreate();</span><br><span class="line">    val sparkContext &#x3D; spark.sparkContext</span><br><span class="line">    val rdd:RDD[Int] &#x3D; sparkContext.parallelize(1 to 20,3)</span><br><span class="line">    &#x2F;&#x2F; save record by record</span><br><span class="line">    val resultRDD &#x3D; rdd.mapPartitions(it&#x3D;&gt;&#123;</span><br><span class="line">      new TransformSaveDataIterator[Int](it)</span><br><span class="line">    &#125;)</span><br><span class="line">      resultRDD.cache()</span><br><span class="line">    resultRDD.filter(_._2 &#x3D;&#x3D; false) &#x2F;&#x2F; exception data</span><br><span class="line">      .saveAsTextFile(&quot;....&quot;)</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; save buffered records</span><br><span class="line">    print(&quot;finally save records: &quot;+ resultRDD.filter(_._2).count())</span><br><span class="line">    val resultRDD2 &#x3D; rdd.mapPartitions(it&#x3D;&gt;&#123;</span><br><span class="line">      new TransformBufferedSaveIterator[Int](it)</span><br><span class="line">    &#125;)</span><br><span class="line">      resultRDD2.cache()</span><br><span class="line">    resultRDD2.filter(_._2 &#x3D;&#x3D; false)</span><br><span class="line">        .saveAsTextFile(&quot;....&quot;)</span><br><span class="line">    print(&quot;finally save records: &quot;+ resultRDD.filter(_._2).count())</span><br><span class="line"></span><br><span class="line">    resultRDD.unpersist()</span><br><span class="line">    resultRDD2.unpersist()</span><br><span class="line">    spark.stop();</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Spark-2-3-0/" rel="tag"># Spark 2.3.0</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019-11-18-SparkOnYarn%20%E4%BB%BB%E5%8A%A1%E9%80%80%E5%87%BA%E7%A0%81/" rel="prev" title="Spark On Yarn 任务退出码">
+      <i class="fa fa-chevron-left"></i> Spark On Yarn 任务退出码
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019-11-25-%E5%9F%BA%E4%BA%8E%E9%98%9F%E5%88%97%E4%BC%98%E5%85%88%E7%BA%A7%E7%9A%84%E5%B0%8F%E9%9B%86%E7%BE%A4%E5%A4%A7%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E6%8A%A2%E5%8D%A0%E6%96%B9%E6%A1%88/" rel="next" title="基于队列优先级的小集群大容器资源抢占模式">
+      基于队列优先级的小集群大容器资源抢占模式 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#概述"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#mapPartitions-一般用法"><span class="nav-number">2.</span> <span class="nav-text">mapPartitions 一般用法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#场景"><span class="nav-number">3.</span> <span class="nav-text">场景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#improved-mapPartitions-1"><span class="nav-number">4.</span> <span class="nav-text">improved mapPartitions 1</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#improved-mapPartitions-2"><span class="nav-number">5.</span> <span class="nav-text">improved mapPartitions 2</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SimpleTestCase"><span class="nav-number">6.</span> <span class="nav-text">SimpleTestCase</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">List</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jiulong.zhu@gmail.com" title="E-Mail → mailto:jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">List</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong-zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2019-11-22-Improved%20MapPartitions%20In%20Spark/",
+            identifier: "2019-11-22-Improved MapPartitions In Spark/",
+            title: "Improved MapPartitions In Spark"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>
