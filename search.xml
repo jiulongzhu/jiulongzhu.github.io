@@ -1,6 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>Spark Adaptive Execution TPCDS 3TB BenchMark</title>
+    <url>/2020-03-18-Spark-Adaptive-Execution-TPCDS-3TB-BenchMark-md/</url>
+    <content><![CDATA[<p>Apache Spark 2.3.0 合并了 Spark 3.0-Preview(预览版)的 Adaptive Execution 和 Dynamic Partition Prune 两个重大特性之后, 在 3TB TPCDS 上的性能测试报告。  </p>
+<p><a href="https://docs.google.com/spreadsheets/d/1g37JP4D92LjK1vs8fj5LaQ7ipAaQ6lJinS84R8xS9x4/edit#gid=0" target="_blank" rel="noopener">Spark Adaptive Execution TPCDS 3TB BenchMark</a></p>
+]]></content>
+      <tags>
+        <tag>Spark 2.3.0</tag>
+        <tag>Adaptive Execution</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Hello World</title>
+    <url>/hello-world/</url>
+    <content><![CDATA[<p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
+<a id="more"></a>
+<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo new <span class="string">"My New Post"</span></span><br></pre></td></tr></table></figure>
+
+<p>More info: <a href="https://hexo.io/docs/writing.html" target="_blank" rel="noopener">Writing</a></p>
+<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
+
+<p>More info: <a href="https://hexo.io/docs/server.html" target="_blank" rel="noopener">Server</a></p>
+<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
+
+<p>More info: <a href="https://hexo.io/docs/generating.html" target="_blank" rel="noopener">Generating</a></p>
+<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
+
+<p>More info: <a href="https://hexo.io/docs/one-command-deployment.html" target="_blank" rel="noopener">Deployment</a></p>
+]]></content>
+  </entry>
+  <entry>
     <title>Maven 常用命令</title>
     <url>/2020-02-23-Maven%20%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/</url>
     <content><![CDATA[<p>　　</p>
@@ -22,6 +52,80 @@
 ]]></content>
       <tags>
         <tag>tools</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Apache Spark TPC-DS 性能测试数据</title>
+    <url>/2020-02-14-Apache%20Spark%20TPCDS%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%95%B0%E6%8D%AE%E9%9B%86/</url>
+    <content><![CDATA[<h2 id="关于-TPC-DS"><a href="#关于-TPC-DS" class="headerlink" title="关于 TPC-DS"></a>关于 TPC-DS</h2><p>TPC(Transaction Process Performance Council, 事务处理性能委员会)是制定商务应用基准程序(Benchmark)的标准规范、性能和价格度量的非营利性组织。TPC-DS 是一个决策支持标准测试，它对决策支持系统的普适性建模，包括查询和数据修改维护。作为一个通用的决策支持标准测试，其提供了具有代表性的性能评估，测试结果包括单用户模式下的查询相应时间、多用户模式下的查询吞吐量、在受控复杂多用户决策支持的工作负载下给定硬件 操作系统 数据处理系统软件配置的数据维护性能。TPC-DS 决策支持标准测试目的是为行业用户提供客观的性能数据。TPC-DS 决策支持一些新兴技术，例如 Hadoop、Spark等大数据解决方案。</p>
+<a id="more"></a>
+
+<h2 id="TPC-DS-数据模型"><a href="#TPC-DS-数据模型" class="headerlink" title="TPC-DS 数据模型"></a>TPC-DS 数据模型</h2><p>TPC-DS 使用零售业务建模，schema 包括客户、订单、销售、退货和产品数据等业务信息。标准测试模拟了任何成熟的决策支持系统都必须具备的两个重要组成部分:  </p>
+<ol>
+<li>用户查询: 数据分析、挖掘，可将运营事实转换为商业智能  </li>
+<li>数据维护: 可将管理分析过程与其所依赖的可操作外部数据源同步  </li>
+</ol>
+<p>TPC-DS 使用星型、雪花模型建模，有多个维度和事实表。每个维度表都有主键，事实表使用外键与维度表主键关联。
+维度表可以分为以下类型:  </p>
+<ol>
+<li>静态：表内容在数据库加载期间仅加载一次，且数据不随着时间变化而变化。  </li>
+<li>历史记录：为单个业务实体创建多行来保存维度数据更改的历史记录，每行包括创建/修改时间的列。”项目”是历史记录维度信息的一个范例。  </li>
+<li>非历史记录：不保留对维度数据所做更改的历史记录。随着维度数据的更新，之前保留的信息将被覆盖。所有事实表都与维度信息的最新值关联。”客户信息”是非历史记录维度信息的一个范例。  </li>
+</ol>
+<p>TPC-DS 有 7 个事实表和 17 个维度表，平均每个表列数在 20 左右，且数据分布是真实而不均匀的，存在数据倾斜，与真实场景非常接近。因此TPC-DS成为客观衡量不同 Hadoop 版本以及 SQL on Hadoop 技术的最佳测试数据集。<br>事实表包含 商店、仓库和互联网三个销售渠道中每个渠道的建模产品销售和退货事实表；库存事实表。<br>维度表用于和每个销售渠道相关信息关联。  </p>
+<p>注： ER 图设计及事实表和维度表表结构详见官方文档(specification.pdf)    </p>
+<h2 id="TPC-DS-查询语句"><a href="#TPC-DS-查询语句" class="headerlink" title="TPC-DS 查询语句"></a>TPC-DS 查询语句</h2><p>由标准建模的查询语句(q1~q99)具有以下特征：  </p>
+<ol>
+<li>解决复杂的业务问题 </li>
+<li>使用各种访问模式、查询短语、运算符和约束  </li>
+<li>使用会在各种查询过程之间变化的查询参数  </li>
+</ol>
+<h2 id="下载-TP-CDS-kit"><a href="#下载-TP-CDS-kit" class="headerlink" title="下载 TP-CDS kit"></a>下载 TP-CDS kit</h2><p>TPCDS  kit 是生成测试数据的工具  </p>
+<p>方法一: 官网下载 <a href="http://www.tpc.org/tpc_documents_current_versions/current_specifications.asp" target="_blank" rel="noopener">http://www.tpc.org/tpc_documents_current_versions/current_specifications.asp</a><br>    填写自己的邮箱后，官方会将下载链接发送到邮箱内，下载即可，文件包大小为 5MB 左右。<br>方法二: github 下载 <a href="https://github.com/gregrahn/tpcds-kit/tree/master" target="_blank" rel="noopener">https://github.com/gregrahn/tpcds-kit/tree/master</a>  </p>
+<p>解压后目录数如下，  </p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">tree -d v2.11.0rc2&#x2F;  </span><br><span class="line"></span><br><span class="line">v2.11.0rc2&#x2F;</span><br><span class="line">├── answer_sets</span><br><span class="line">├── query_templates</span><br><span class="line">├── query_variants</span><br><span class="line">├── specification</span><br><span class="line">├── tests</span><br><span class="line">└── tools</span><br></pre></td></tr></table></figure>
+<p>其中 specification为 tpcds 说明书，包括工具说明、数据模型、ER 图、度量信息等；query_templates 为查询语句模板；query_variants 为查询语句模板的参数；answer_sets 为查询结果集；tools 为数据集生成及查询语句生成工具集。Apache Spark sql/core module 内置了org.apache.spark.sql.execution.benchmark.TPCDSQueryBenchmark 测试入口和 tpcds q1~q99 查询语句。因此只需将测试数据准备好即可。  </p>
+<h2 id="生成-TPC-DS"><a href="#生成-TPC-DS" class="headerlink" title="生成 TPC-DS"></a>生成 TPC-DS</h2><p>TPC-DS 可根据模拟场景产生以 GB 为最小粒度的数据集，常见的有 1TB、3TB、10TB、30TB、100TB等。  </p>
+<h3 id="编译-tpcds-kit"><a href="#编译-tpcds-kit" class="headerlink" title="编译 tpcds kit"></a>编译 tpcds kit</h3><p>需要在每个节点上编译tpcds kit  </p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">sudo yum install gcc make flex bison byacc git  </span><br><span class="line">cd v2.11.0rc2&#x2F;tools  </span><br><span class="line">make clean &amp;&amp; make OS&#x3D;LINUX</span><br></pre></td></tr></table></figure>
+<p>编译完成后，在 tools 目录下会多出两个可执行文件: dsdgen,dsqgen。dsdgen 用于生成测试数据，dsqgen 用于生成在不同 SQL 标准下的查询语句。  </p>
+<h3 id="生成数据"><a href="#生成数据" class="headerlink" title="生成数据"></a>生成数据</h3><p>databricks 为 Spark SQL 制作的数据生成工具 spark-sql-perf，似乎不如其宣传的那么好用。<br>spak-sql-perf github 地址:  <a href="https://github.com/databricks/spark-sql-perf" target="_blank" rel="noopener">https://github.com/databricks/spark-sql-perf</a>    </p>
+<p>其原理是: 依次为每个表 并行调用 tpcds kit的 dsdgen 命令生成数据(本地磁盘、text格式、’|’分割、无压缩) 作为表数据集，即生成的所有数据为 DataFrame、每个并行调用 dsdgen 产生的数据为 DataFrame 的分区。 然后将此数据集转换(读取再存储)为 hdfs上的 parquet+snappy 文件，并创建为 Hive 的外部表。核心代码如下    </p>
+<p>调用 dsdgen 命令生成分区数据<br>[DSDGEN.scala]</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">class DSDGEN(dsdgenDir: String) extends DataGenerator &#123;</span><br><span class="line">  val dsdgen &#x3D; s&quot;$dsdgenDir&#x2F;dsdgen&quot;</span><br><span class="line">  def generate(sparkContext: SparkContext, name: String, partitions: Int, scaleFactor: String) &#x3D; &#123;</span><br><span class="line">    val generatedData &#x3D; &#123;</span><br><span class="line">      sparkContext.parallelize(1 to partitions, partitions).flatMap &#123; i &#x3D;&gt;</span><br><span class="line">        val localToolsDir &#x3D; if (new java.io.File(dsdgen).exists) &#123;</span><br><span class="line">          dsdgenDir</span><br><span class="line">        &#125; else if (new java.io.File(s&quot;&#x2F;$dsdgen&quot;).exists) &#123;</span><br><span class="line">          s&quot;&#x2F;$dsdgenDir&quot;</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">          sys.error(s&quot;Could not find dsdgen at $dsdgen or &#x2F;$dsdgen. Run install&quot;)</span><br><span class="line">        &#125;</span><br><span class="line">        val parallel &#x3D; if (partitions &gt; 1) s&quot;-parallel $partitions -child $i&quot; else &quot;&quot;</span><br><span class="line">        val commands &#x3D; Seq(</span><br><span class="line">          &quot;bash&quot;, &quot;-c&quot;,</span><br><span class="line">          s&quot;cd $localToolsDir &amp;&amp; .&#x2F;dsdgen -table $name -filter Y -scale $scaleFactor -RNGSEED 100 $parallel&quot;)</span><br><span class="line">        println(commands)</span><br><span class="line">        BlockingLineStream(commands)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    generatedData.setName(s&quot;$name, sf&#x3D;$scaleFactor, strings&quot;)</span><br><span class="line">    generatedData</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>spark-sql-perf 拼接的并行 dsdgen 命令类似于:  cd tpcds/v2.11.0rc2/tools &amp;&amp; ./dsdgen -table catalog_sales -filter Y -scale 3000 -RNGSEED 100 -parallel 2000 -child 8，scala=3000意为生成 3000G数据集，-table= catalog_sales 当前生成表，-filter=Y 意为输出数据到 stdout，-RNGSEED=100 意为 RNG seed 值，-parallel=2000 意为并行度 2000 生成数据，-child 为当前并行的标识 用于命名本地数据文件。  </p>
+<p>命令存在的问题(tpcds-kit 分支 master、v2.10、v2.5、v2.3均存在):  </p>
+<ol>
+<li>tpcds kit 的识别的 option 为 _filter,但是 spark-sql-perf 拼接的命令为 -filter    </li>
+<li>tpcds 数据模型之间有依赖关系，不能独立生成，表数据之间不是完全独立的，e.g. 销售表和退货表。 
+为 table = catalog_returns 生成数据时 dsdgen 会抛出错误 ERROR: Table catalog_returns is a child; it is populated during the build of its parent (e.g., catalog_sales builds catalog_returns)   </li>
+</ol>
+<p>尝试切换了 master、v2.10、 v2.5、 v2.3等分支 均无法解决上述问题。<br>针对上述，我采用的方案是 依旧以 spark-sql-perf 为主体(表结构、dsdgen 生成数据、数据转换 parquet 到 hdfs、创建 hive 外部表等)，修改点如下： </p>
+<ol>
+<li>修改数据并行生成命令   <pre><code>val commands = Seq(
+ &quot;bash&quot;, &quot;-c&quot;,
+ s&quot;cd $localToolsDir &amp;&amp; ./dsdgen -_filter Y -scale $scaleFactor -RNGSEED 100 $parallel&quot;)</code></pre></li>
+<li>增加 并行数据生成后，把生成的数据上传到 hdfs 上的逻辑    </li>
+<li>修改表 DataFrame(RDD)生成逻辑，原有的逻辑为 dsdgen 命令包装为BlockingLineStream，修改为从 hdfs 上读取 $tableName*.dat 的逻辑</li>
+<li>text 文本转 parquet + snappy 逻辑不变、创建 hive 外部表关联到 parquet 文件的逻辑不变。  </li>
+</ol>
+<p>3TB 测试数据集文件上传到 hdfs 后，使用 spark 来转换数据为 parquet 并注册外部表程序如下<br>3TB 测试数据集使用 Spark 程序转换格式时，spark.executor.memory+spark.executor.memoryOverhead 不低于 10GB。  </p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">spark-shell --master yarn-client --name &quot;transformation&quot; --queue high --executor-memory 8G --driver-memory 4G --num-executors 200 --conf &quot;spark.executor.memoryOverhead&#x3D;8G&quot; --jars ~&#x2F;tpcds&#x2F;spark-sql-perf_2.11-0.5.1-SNAPSHOT.jar</span><br><span class="line"></span><br><span class="line">import scala.sys.process._</span><br><span class="line">import java.util.concurrent.LinkedBlockingQueue</span><br><span class="line">import scala.collection.immutable.Stream</span><br><span class="line">import com.databricks.spark.sql.perf.BlockingLineStream</span><br><span class="line">import com.databricks.spark.sql.perf.BlockingLineStream.Spawn </span><br><span class="line">import com.databricks.spark.sql.perf.BlockingLineStream.BlockingStreamed</span><br><span class="line">import com.databricks.spark.sql.perf.tpcds.TPCDSTables</span><br><span class="line">import org.apache.spark.sql._</span><br><span class="line"></span><br><span class="line">val partitions &#x3D; 200</span><br><span class="line">val scaleFactor &#x3D; &quot;3000&quot; </span><br><span class="line">val localToolsDir &#x3D; &quot;&#x2F;home&#x2F;jiulong.zhu&#x2F;tpcds&#x2F;v2.11.0rc2&#x2F;tools&quot;</span><br><span class="line">val rootDir: String &#x3D; &quot;hdfs:&#x2F;&#x2F;pub1&#x2F;user&#x2F;jiulong.zhu&#x2F;tpcds3t&quot; </span><br><span class="line">val databaseName &#x3D; &quot;tpcds3t&quot;</span><br><span class="line">val sqlContext &#x3D; new SQLContext(sc)</span><br><span class="line">val format &#x3D; &quot;parquet&quot;</span><br><span class="line">sc.parallelize(1 to partitions,partitions).flatMap &#123; i &#x3D;&gt;</span><br><span class="line">        val parallel &#x3D; if (partitions &gt; 1) s&quot;-parallel $partitions -child $i&quot; else &quot;&quot;</span><br><span class="line">        val commands &#x3D; Seq(</span><br><span class="line">          &quot;bash&quot;, &quot;-c&quot;,</span><br><span class="line">          s&quot;cd $localToolsDir &amp;&amp; .&#x2F;dsdgen -dir data&#x2F; -_filter Y -scale $scaleFactor -RNGSEED 100 $parallel -force Y&quot;)</span><br><span class="line">        println(commands)</span><br><span class="line">        val streamed &#x3D; com.databricks.spark.sql.perf.BlockingLineStream.BlockingStreamed[String](true)</span><br><span class="line">        val process &#x3D; commands.run(BasicIO(false, streamed.process, None))</span><br><span class="line">        Spawn(streamed.done(process.exitValue()))</span><br><span class="line">        val hdfsCommand &#x3D;  Seq(</span><br><span class="line">          &quot;bash&quot;, &quot;-c&quot;,</span><br><span class="line">          s&quot;cd $localToolsDir &amp;&amp; .hadoop fs -put data&#x2F;*.dat temp&#x2F;&quot;)</span><br><span class="line">          val putProcess &#x3D; hdfsCommand.run(BasicIO(false, streamed.process, None))</span><br><span class="line">        Spawn(streamed.done(putProcess.exitValue()))          </span><br><span class="line">        Seq(streamed.stream())</span><br><span class="line">      &#125;.collect()</span><br><span class="line"></span><br><span class="line">&#x2F;&#x2F; Run:</span><br><span class="line">val tables &#x3D; new TPCDSTables(sqlContext,</span><br><span class="line">    dsdgenDir &#x3D; localToolsDir, &#x2F;&#x2F; location of dsdgen</span><br><span class="line">    scaleFactor &#x3D; scaleFactor,</span><br><span class="line">    useDoubleForDecimal &#x3D; false, &#x2F;&#x2F; true to replace DecimalType with DoubleType</span><br><span class="line">    useStringForDate &#x3D; false) &#x2F;&#x2F; true to replace DateType with StringType</span><br><span class="line"></span><br><span class="line">tables.genData(</span><br><span class="line">    location &#x3D; rootDir,</span><br><span class="line">    format &#x3D; format,</span><br><span class="line">    overwrite &#x3D; true, &#x2F;&#x2F; overwrite the data that is already there</span><br><span class="line">    partitionTables &#x3D; true, &#x2F;&#x2F; create the partitioned fact tables</span><br><span class="line">    clusterByPartitionColumns &#x3D; true, &#x2F;&#x2F; shuffle to get partitions coalesced into single files.</span><br><span class="line">    filterOutNullPartitionValues &#x3D; false, &#x2F;&#x2F; true to filter out the partition with NULL key value</span><br><span class="line">    tableFilter &#x3D; &quot;&quot;, &#x2F;&#x2F; &quot;&quot; means generate all tables</span><br><span class="line">    numPartitions &#x3D; 2000) &#x2F;&#x2F; how many dsdgen partitions to run - number of input tasks.</span><br><span class="line"></span><br><span class="line">&#x2F;&#x2F; Create the specified database</span><br><span class="line">sql(s&quot;create database if not exists $databaseName&quot;)</span><br><span class="line">&#x2F;&#x2F; Create metastore tables in a specified database for your data.</span><br><span class="line">&#x2F;&#x2F; Once tables are created, the current database will be switched to the specified database.</span><br><span class="line">tables.createExternalTables(rootDir, &quot;parquet&quot;, databaseName, overwrite &#x3D; true, discoverPartitions &#x3D; true)</span><br></pre></td></tr></table></figure>
+
+<p>tpcds 3TB 数据集在 text无压缩格式下为 2.7TB，转为 parquet snappy 格式后约为 900GB，orc snappy 格式约为 800GB。</p>
+<h2 id="测试-SparkSQL"><a href="#测试-SparkSQL" class="headerlink" title="测试 SparkSQL"></a>测试 SparkSQL</h2><p>nohup sh TPCDSBench.sh &amp;<br>TPCDSBench.sh  </p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">export SPARK_HOME&#x3D;&#x2F;home&#x2F;jiulong.zhu&#x2F;spark-2.3.0-bin-hadoop2.7</span><br><span class="line">MASTER&#x3D;yarn-client</span><br><span class="line">APP_NAME&#x3D;AE_ENABLED</span><br><span class="line">DRIVER_MEMORY&#x3D;8G</span><br><span class="line">EXECUTOR_MEMORY&#x3D;10G</span><br><span class="line">NUM_EXECUTORS&#x3D;100</span><br><span class="line">EXECUTOR_CORES&#x3D;5</span><br><span class="line">EX_JARS&#x3D;&#x2F;home&#x2F;jiulong.zhu&#x2F;tpcds&#x2F;spark-sql_2.11-2.3.1-SNAPSHOT-tests.jar</span><br><span class="line">AE_ENABLE&#x3D;false</span><br><span class="line"></span><br><span class="line">spark-submit --master $MASTER --name $&#123;APP_NAME&#125;_$&#123;AE_ENABLE&#125; \</span><br><span class="line">--conf &quot;spark.executor.instances&#x3D;$NUM_EXECUTORS&quot; \</span><br><span class="line">--conf &quot;spark.executor.cores&#x3D;$EXECUTOR_CORES&quot; \</span><br><span class="line">--conf &quot;spark.sql.crossJoin.enabled&#x3D;true&quot; \</span><br><span class="line">--conf &quot;spark.sql.autoBroadcastJoinThreshold&#x3D;21971520&quot; \</span><br><span class="line">--conf &quot;spark.default.parallelism&#x3D;1000&quot; \</span><br><span class="line">--conf &quot;spark.sql.shuffle.partitions&#x3D;1000&quot; \</span><br><span class="line">--conf &quot;spark.sql.parquet.compression.codec&#x3D;snappy&quot; \</span><br><span class="line">--conf &quot;spark.sql.adaptive.enabled&#x3D;$&#123;AE_ENABLE&#125;&quot; \</span><br><span class="line">--conf &quot;spark.dynamicAllocation.enabled&#x3D;false&quot; \</span><br><span class="line">--conf &quot;spark.executor.memoryOverhead&#x3D;10G&quot; \</span><br><span class="line">--conf &quot;spark.sql.adaptive.minNumPostShufflePartitions&#x3D;1000&quot; \</span><br><span class="line">--queue high \</span><br><span class="line">--driver-memory $DRIVER_MEMORY --executor-memory $EXECUTOR_MEMORY \</span><br><span class="line">--class org.apache.spark.sql.execution.benchmark.TPCDSQueryBenchmark $EX_JARS \</span><br><span class="line">--data-location hdfs:&#x2F;&#x2F;pub1&#x2F;user&#x2F;jiulong.zhu&#x2F;tpcds3t</span><br></pre></td></tr></table></figure>
+
+<h2 id="附录及参考"><a href="#附录及参考" class="headerlink" title="附录及参考"></a>附录及参考</h2><ol>
+<li>从大数据平台二次开发、性能优化方面，准备一套合适的性能测试数据、通用查询语句、工具和测试流程对于性能提升量化和成果量化有非比寻常的意义。    </li>
+<li>可以试试 IBM 的 spark-tpc-ds-performance-test(<a href="https://github.com/IBM/spark-tpc-ds-performance-test)，但是仍旧需要自备一套" target="_blank" rel="noopener">https://github.com/IBM/spark-tpc-ds-performance-test)，但是仍旧需要自备一套</a> TPCDS 测试数据集。   </li>
+<li>参考:<br>　　<a href="https://databricks.com/session/spark-sql-2-0-experiences-using-tpc-ds" target="_blank" rel="noopener">https://databricks.com/session/spark-sql-2-0-experiences-using-tpc-ds</a><br>　　<a href="https://github.com/databricks/spark-sql-perf" target="_blank" rel="noopener">https://github.com/databricks/spark-sql-perf</a>   </li>
+</ol>
+]]></content>
+      <tags>
+        <tag>Spark 2.3</tag>
+        <tag>Adaptive Execution</tag>
       </tags>
   </entry>
   <entry>
@@ -176,29 +280,10 @@
 <p>注: 高压缩率 ORC 文件 4MB 解压后有 4G 左右的大小，可能需要降低下限    </p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
         <tag>Spark SQL</tag>
       </tags>
-  </entry>
-  <entry>
-    <title>Hello World</title>
-    <url>/hello-world/</url>
-    <content><![CDATA[<p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
-<a id="more"></a>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo new <span class="string">"My New Post"</span></span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/writing.html" target="_blank" rel="noopener">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/server.html" target="_blank" rel="noopener">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/generating.html" target="_blank" rel="noopener">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/one-command-deployment.html" target="_blank" rel="noopener">Deployment</a></p>
-]]></content>
   </entry>
   <entry>
     <title>SparkSQL源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan</title>
@@ -646,8 +731,8 @@
 </tbody></table>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1028,8 +1113,8 @@
 <figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">def lookupFunction(</span><br><span class="line">      name: FunctionIdentifier,</span><br><span class="line">      children: Seq[Expression]): Expression &#x3D; synchronized &#123;</span><br><span class="line">    if (name.database.isEmpty &amp;&amp; functionRegistry.functionExists(name)) &#123;</span><br><span class="line">      &#x2F;&#x2F; This function has been already loaded into the function registry.</span><br><span class="line">      return functionRegistry.lookupFunction(name, children)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; If the name itself is not qualified, add the current database to it.</span><br><span class="line">    val database &#x3D; formatDatabaseName(name.database.getOrElse(getCurrentDatabase))</span><br><span class="line">    val qualifiedName &#x3D; name.copy(database &#x3D; Some(database))</span><br><span class="line"></span><br><span class="line">    if (functionRegistry.functionExists(qualifiedName)) &#123;</span><br><span class="line">      return functionRegistry.lookupFunction(qualifiedName, children)</span><br><span class="line">    &#125;</span><br><span class="line">    val catalogFunction &#x3D; try &#123;</span><br><span class="line">      externalCatalog.getFunction(database, name.funcName)</span><br><span class="line">    &#125; catch &#123;</span><br><span class="line">      case _: AnalysisException &#x3D;&gt; failFunctionLookup(name)</span><br><span class="line">      case _: NoSuchPermanentFunctionException &#x3D;&gt; failFunctionLookup(name)</span><br><span class="line">    &#125;</span><br><span class="line">    loadFunctionResources(catalogFunction.resources)</span><br><span class="line">    registerFunction(catalogFunction.copy(identifier &#x3D; qualifiedName), overrideIfExists &#x3D; false)</span><br><span class="line">    &#x2F;&#x2F; Now, we need to create the Expression.</span><br><span class="line">    functionRegistry.lookupFunction(qualifiedName, children)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1066,8 +1151,8 @@
 <p>visitTable 方法的返回值是 UnresovedRelation<br>visitStar 方法的返回值是 UnresolvedStar<br>visitColumnReference 方法的返回值是 UnresolvedRegex 或 UnresolvedAttribute<br>visitFunctionCall 方法的返回值是 UnresolvedWindowExpression 或 WindowExpression<br>….</p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1624,8 +1709,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Spark On Yarn ExitCode</tag>
       </tags>
   </entry>
@@ -1675,8 +1760,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn User Headroom</tag>
       </tags>
   </entry>
@@ -2291,8 +2376,8 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html</a><br><a href="https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us" target="_blank" rel="noopener">https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us</a><br><a href="http://gitbook.net/java/util/java_util_treemap.html" target="_blank" rel="noopener">http://gitbook.net/java/util/java_util_treemap.html</a>  </p>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn ReservationSystem</tag>
       </tags>
   </entry>
@@ -2442,9 +2527,9 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html</a><br><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption</a><br><a href="https://www.aboutyun.com/thread-24628-1-1.html" target="_blank" rel="noopener">https://www.aboutyun.com/thread-24628-1-1.html</a></p>
 ]]></content>
       <tags>
+        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
         <tag>Yarn PreemptionSystem</tag>
-        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -2779,8 +2864,8 @@ LeafQueue 和ParentQueue  一样,使用抽象父类AbstractCSQueue#allocateResou
 
 <h2 id="线上测试用例"><a href="#线上测试用例" class="headerlink" title="线上测试用例"></a>线上测试用例</h2>]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn 优化</tag>
       </tags>
   </entry>
@@ -2838,8 +2923,8 @@ spark.shuffle.service.port 7337   额外的 shuffle service 服务所占用的�
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p> <a href="http://spark.apache.org/docs/2.3.1/configuration.html" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/configuration.html</a><br> <a href="http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service</a>  </p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
 </search>

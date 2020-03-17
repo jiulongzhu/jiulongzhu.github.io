@@ -54,11 +54,11 @@
 <meta property="og:description" content="前言Yarn 使用树状层级队列组织方式来管理资源,所有 NodeManager 持有的资源聚集作为资源根队列 root 来代表集群中所有可用资源,root可有有多个子队列,子队列也可以有自己的子队列,树状层级结构的最底层为叶子队列.除 root 外,每个子队列都会持有父队列一定比例的资源 即最低配额(Configured Capacity),以及最多可持有的资源 即最高配额(Configured">
 <meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;img&#x2F;pictures&#x2F;yarn_preempt&#x2F;preempt_queue.png">
 <meta property="article:published_time" content="2019-10-04T16:00:00.000Z">
-<meta property="article:modified_time" content="2019-12-12T03:58:29.919Z">
+<meta property="article:modified_time" content="2020-03-16T10:01:28.106Z">
 <meta property="article:author" content="List">
+<meta property="article:tag" content="源码解析">
 <meta property="article:tag" content="Yarn 2.7.3">
 <meta property="article:tag" content="Yarn PreemptionSystem">
-<meta property="article:tag" content="源码解析">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;img&#x2F;pictures&#x2F;yarn_preempt&#x2F;preempt_queue.png">
 
@@ -223,7 +223,7 @@
                   <i class="fa fa-calendar-check-o"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2019-12-12 11:58:29" itemprop="dateModified" datetime="2019-12-12T11:58:29+08:00">2019-12-12</time>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
               </span>
 
           
@@ -401,9 +401,9 @@
 
       <footer class="post-footer">
           <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
               <a href="/tags/Yarn-2-7-3/" rel="tag"># Yarn 2.7.3</a>
               <a href="/tags/Yarn-PreemptionSystem/" rel="tag"># Yarn PreemptionSystem</a>
-              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
           </div>
 
         
@@ -499,14 +499,14 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-count">18</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-count">14</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>

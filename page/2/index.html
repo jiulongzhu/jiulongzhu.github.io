@@ -186,6 +186,187 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-11-25-%E5%9F%BA%E4%BA%8E%E9%98%9F%E5%88%97%E4%BC%98%E5%85%88%E7%BA%A7%E7%9A%84%E5%B0%8F%E9%9B%86%E7%BE%A4%E5%A4%A7%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E6%8A%A2%E5%8D%A0%E6%96%B9%E6%A1%88/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2019-11-25-%E5%9F%BA%E4%BA%8E%E9%98%9F%E5%88%97%E4%BC%98%E5%85%88%E7%BA%A7%E7%9A%84%E5%B0%8F%E9%9B%86%E7%BE%A4%E5%A4%A7%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E6%8A%A2%E5%8D%A0%E6%96%B9%E6%A1%88/" class="post-title-link" itemprop="url">基于队列优先级的小集群大容器资源抢占模式</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-11-25 00:00:00" itemprop="dateCreated datePublished" datetime="2019-11-25T00:00:00+08:00">2019-11-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-11-25-%E5%9F%BA%E4%BA%8E%E9%98%9F%E5%88%97%E4%BC%98%E5%85%88%E7%BA%A7%E7%9A%84%E5%B0%8F%E9%9B%86%E7%BE%A4%E5%A4%A7%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E6%8A%A2%E5%8D%A0%E6%96%B9%E6%A1%88/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-11-25-基于队列优先级的小集群大容器资源抢占方案/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="抢占概述"><a href="#抢占概述" class="headerlink" title="抢占概述"></a>抢占概述</h2><p>　　Yarn 使用树状层级队列组织方式来管理资源，所有 NodeManager 持有的资源聚集作为资源根队列 root 来代表集群中所有可用资源<br>　　层级队列中除 root 外每个队列可以设置其拥有父队列的最低配额和最高配额。最高配额是队列无论在任何情况下都不会超出的资源量，最低配额一般理解为在队列保底资源量以快速响应请求，实际上是用来决定集群资源配比权重。为了提高集群整体的资源利用率，Yarn 引入了抢占机制:  </p>
+<ol>
+<li>在队列中无任务运行时，队列没有必要硬遵守保留最低配额，可以将资源借给负载较高的其他队列  </li>
+<li>当借出资源的队列接收到了新提交的应用时，将出借的资源收回以满足本队列的资源需求  </li>
+</ol>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2019-11-25-%E5%9F%BA%E4%BA%8E%E9%98%9F%E5%88%97%E4%BC%98%E5%85%88%E7%BA%A7%E7%9A%84%E5%B0%8F%E9%9B%86%E7%BE%A4%E5%A4%A7%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E6%8A%A2%E5%8D%A0%E6%96%B9%E6%A1%88/#more" rel="contents">
+                Read more &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-11-22-Improved%20MapPartitions%20In%20Spark/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2019-11-22-Improved%20MapPartitions%20In%20Spark/" class="post-title-link" itemprop="url">Improved MapPartitions In Spark</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-11-22 00:00:00" itemprop="dateCreated datePublished" datetime="2019-11-22T00:00:00+08:00">2019-11-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-11-22-Improved%20MapPartitions%20In%20Spark/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-11-22-Improved MapPartitions In Spark/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>map 和 mapPartitions 是 Spark 中最常用的 ETL 算子，用于将数据映射为另一批数据。区别在于,  </p>
+<ol>
+<li>数据粒度: map 输入和输出数据都是单条记录，严格的一对一关系。mapPartitions 输入和输出数据都是一个分区的数据迭代器, n 对 m 关系。  </li>
+<li>功能: mapPartitions 功能远强于 map,其一 mapPartitions 可以在映射过程中做诸如过滤的额外操作，其二在需要创建重量级对象(e.g. 数据库连接)的场景下 mapPartitions 比 map 操作更合适。 </li>
+<li>性能: 性能上无明显差异。一般将分区输出数据先存储在内存数据结构中,结束后转成迭代器形式。在内存中存储数据这种方式可能会导致 OOM，但是有方法避免，这是本文的价值点。     </li>
+</ol>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2019-11-22-Improved%20MapPartitions%20In%20Spark/#more" rel="contents">
+                Read more &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
     <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-11-18-SparkOnYarn%20%E4%BB%BB%E5%8A%A1%E9%80%80%E5%87%BA%E7%A0%81/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -309,7 +490,7 @@
                   <i class="fa fa-calendar-check-o"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2019-12-12 11:59:20" itemprop="dateModified" datetime="2019-12-12T11:59:20+08:00">2019-12-12</time>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
               </span>
 
           
@@ -395,7 +576,7 @@
                   <i class="fa fa-calendar-check-o"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2019-12-12 11:59:00" itemprop="dateModified" datetime="2019-12-12T11:59:00+08:00">2019-12-12</time>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
               </span>
 
           
@@ -481,7 +662,7 @@
                   <i class="fa fa-calendar-check-o"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2019-12-12 11:58:29" itemprop="dateModified" datetime="2019-12-12T11:58:29+08:00">2019-12-12</time>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
               </span>
 
           
@@ -576,7 +757,7 @@
                   <i class="fa fa-calendar-check-o"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2019-12-12 11:57:57" itemprop="dateModified" datetime="2019-12-12T11:57:57+08:00">2019-12-12</time>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
               </span>
 
           
@@ -663,7 +844,7 @@ Used Capacity、Absolute Used Capacity、Used Resource、Num Containers指标非
                   <i class="fa fa-calendar-check-o"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2019-12-12 11:57:10" itemprop="dateModified" datetime="2019-12-12T11:57:10+08:00">2019-12-12</time>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
               </span>
 
           
@@ -784,14 +965,14 @@ Used Capacity、Absolute Used Capacity、Used Resource、Num Containers指标非
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-count">18</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-count">14</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
