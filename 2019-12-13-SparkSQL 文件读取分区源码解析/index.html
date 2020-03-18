@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="不考虑 SQL 文本在 SparkSQL 中的全生命周期，仅关注 SQL 物理计划读取文件及分区划分的部分逻辑     12345678linux&gt; spark-shell --master yarn --queue highscala&gt; val sql&#x3D;&quot;SELECT count(1) FROM utest.u_tbl_ifs_cost_aggregations&amp;">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SparkSQL 文件读取及划分分区源码解析">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90&#x2F;index.html">
+<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:description" content="不考虑 SQL 文本在 SparkSQL 中的全生命周期，仅关注 SQL 物理计划读取文件及分区划分的部分逻辑     12345678linux&gt; spark-shell --master yarn --queue highscala&gt; val sql&#x3D;&quot;SELECT count(1) FROM utest.u_tbl_ifs_cost_aggregations&amp;">
+<meta property="article:published_time" content="2019-12-12T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-03-16T10:01:28.111Z">
+<meta property="article:author" content="List">
+<meta property="article:tag" content="Spark 2.3.0">
+<meta property="article:tag" content="源码解析">
+<meta property="article:tag" content="Spark SQL">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>SparkSQL 文件读取及划分分区源码解析 | List's Blog</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">List's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">李斯特</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          SparkSQL 文件读取及划分分区源码解析
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-12-13 00:00:00" itemprop="dateCreated datePublished" datetime="2019-12-13T00:00:00+08:00">2019-12-13</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-12-13-SparkSQL 文件读取分区源码解析/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>不考虑 SQL 文本在 SparkSQL 中的全生命周期，仅关注 SQL 物理计划读取文件及分区划分的部分逻辑    </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">linux&gt; spark-shell --master yarn --queue high</span><br><span class="line">scala&gt; val sql&#x3D;&quot;SELECT count(1) FROM utest.u_tbl_ifs_cost_aggregations&quot;</span><br><span class="line">scala&gt; val df &#x3D; spark.sql(sql)</span><br><span class="line">scala&gt; df.queryExecution.sparkPlan</span><br><span class="line">res0: org.apache.spark.sql.execution.SparkPlan &#x3D;</span><br><span class="line">HashAggregate(keys&#x3D;[], functions&#x3D;[count(1)], output&#x3D;[count(1)#47L])</span><br><span class="line">+- HashAggregate(keys&#x3D;[], functions&#x3D;[partial_count(1)], output&#x3D;[count#96L])</span><br><span class="line">   +- FileScan orc utest.u_tbl_ifs_cost_aggregations[] Batched: true, Format: ORC, Location: InMemoryFileIndex[hdfs:&#x2F;&#x2F;bj2&#x2F;user&#x2F;hive&#x2F;warehouse&#x2F;utest.db&#x2F;u_tbl_ifs_cost_aggregations], PartitionFilters: [], PushedFilters: [], ReadSchema: struct&lt;&gt;</span><br></pre></td></tr></table></figure>
+
+<p>即 SparkSQL 中读取表部分实际是委托给 FileSourceScanExec 来处理  </p>
+<a id="more"></a>
+
+<h2 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h2><p>第一步: 读取逻辑分区(可能包含多个物理文件)做为数据迭代器<br>第二步: 按照是否分桶分别处理(分桶情况下，分区数和桶数量相关)<br>[FileSourceScanExec.scala]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">private lazy val inputRDD: RDD[InternalRow] &#x3D; &#123;</span><br><span class="line">	&#x2F;&#x2F; 第一步</span><br><span class="line">       &#x2F;&#x2F; filters 为可下推到物理文件的过滤器(e.g. 分区)</span><br><span class="line">    val readFile: (PartitionedFile) &#x3D;&gt; Iterator[InternalRow] &#x3D;</span><br><span class="line">      relation.fileFormat.buildReaderWithPartitionValues(</span><br><span class="line">        sparkSession &#x3D; relation.sparkSession,</span><br><span class="line">        dataSchema &#x3D; relation.dataSchema,</span><br><span class="line">        partitionSchema &#x3D; relation.partitionSchema,</span><br><span class="line">        requiredSchema &#x3D; requiredSchema,</span><br><span class="line">        filters &#x3D; pushedDownFilters,</span><br><span class="line">        options &#x3D; relation.options,</span><br><span class="line">        hadoopConf &#x3D; relation.sparkSession.sessionState.newHadoopConfWithOptions(relation.options))</span><br><span class="line">        &#x2F;&#x2F; 第二步</span><br><span class="line">    relation.bucketSpec match &#123;</span><br><span class="line">      case Some(bucketing) if relation.sparkSession.sessionState.conf.bucketingEnabled &#x3D;&gt;</span><br><span class="line">        createBucketedReadRDD(bucketing, readFile, selectedPartitions, relation)</span><br><span class="line">      case _ &#x3D;&gt;</span><br><span class="line">        createNonBucketedReadRDD(readFile, selectedPartitions, relation)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>按照未分桶的情况来看  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br></pre></td><td class="code"><pre><span class="line">private def createNonBucketedReadRDD(</span><br><span class="line">      readFile: (PartitionedFile) &#x3D;&gt; Iterator[InternalRow],</span><br><span class="line">      selectedPartitions: Seq[PartitionDirectory],</span><br><span class="line">      fsRelation: HadoopFsRelation): RDD[InternalRow] &#x3D; &#123;</span><br><span class="line">      &#x2F;&#x2F; 单(逻辑)分区最大数据量，默认 128 MB</span><br><span class="line">    val defaultMaxSplitBytes &#x3D;</span><br><span class="line">      fsRelation.sparkSession.sessionState.conf.filesMaxPartitionBytes</span><br><span class="line">      &#x2F;&#x2F; 打开文件的代价,默认 4MB。一般理解为单(逻辑)分区最小数据量，物理小文件较多时合并多个物理文件为一个逻辑分区</span><br><span class="line">      &#x2F;&#x2F; 避免过多的小任务</span><br><span class="line">    val openCostInBytes &#x3D; fsRelation.sparkSession.sessionState.conf.filesOpenCostInBytes</span><br><span class="line">    &#x2F;&#x2F; 默认并行度,取的是 CoarseGrainedSchedulerBackend#defaultParallelism</span><br><span class="line">    val defaultParallelism &#x3D; fsRelation.sparkSession.sparkContext.defaultParallelism</span><br><span class="line">    &#x2F;&#x2F; 文件夹下所有文件累计大小</span><br><span class="line">    val totalBytes &#x3D; selectedPartitions.flatMap(_.files.map(_.getLen + openCostInBytes)).sum</span><br><span class="line">    &#x2F;&#x2F; 每个 core 分均处理数据量  </span><br><span class="line">    val bytesPerCore &#x3D; totalBytes &#x2F; defaultParallelism</span><br><span class="line">    val files &#x3D; fsRelation.inputFiles.mkString(&quot;,&quot;)</span><br><span class="line">    logInfo(s&quot;$&#123;fsRelation.toString&#125;, sizeInBytes: $&#123;fsRelation.location.sizeInBytes&#125;, files: $&#123;files&#125;&quot;)</span><br><span class="line">    val log &#x3D; s&quot;defaultParallelism: $&#123;defaultParallelism&#125;, totalBytes: $&#123;totalBytes&#125;, bytesPerCore: $&#123;bytesPerCore&#125;&quot;</span><br><span class="line">    logInfo(log)</span><br><span class="line">    &#x2F;&#x2F; 期望分区大小。 公式含义: 在单分区处理数据量不超过 128M 且不低于 4MB的条件下,所有数据负载均衡给各并发处理</span><br><span class="line">    val maxSplitBytes &#x3D; Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))</span><br><span class="line">    logInfo(s&quot;Planning scan with bin packing, max size: $maxSplitBytes bytes, &quot; +</span><br><span class="line">      s&quot;open cost is considered as scanning $openCostInBytes bytes.&quot;)</span><br><span class="line">	</span><br><span class="line">	&#x2F;&#x2F; selectedPartitions 是分区下推之后的所有分区目录,非分区表或无需分区下推的情况下,为表在 hdfs 目录</span><br><span class="line">    val splitFiles &#x3D; selectedPartitions.flatMap &#123; partition &#x3D;&gt;</span><br><span class="line">      partition.files.flatMap &#123; file &#x3D;&gt;</span><br><span class="line">        val blockLocations &#x3D; getBlockLocations(file)</span><br><span class="line">        &#x2F;&#x2F; 若文件可分割,则按照&quot;期望分区大小&quot;来划分作为 逻辑上的文件</span><br><span class="line">        &#x2F;&#x2F; 若文件不可分割,每个物理文件作为一个 逻辑上的文件</span><br><span class="line">        if (fsRelation.fileFormat.isSplitable(</span><br><span class="line">            fsRelation.sparkSession, fsRelation.options, file.getPath)) &#123;</span><br><span class="line">          (0L until file.getLen by maxSplitBytes).map &#123; offset &#x3D;&gt;</span><br><span class="line">            val remaining &#x3D; file.getLen - offset</span><br><span class="line">            &#x2F;&#x2F; 文件尾部不足则剩余作为一个逻辑上的文件</span><br><span class="line">            val size &#x3D; if (remaining &gt; maxSplitBytes) maxSplitBytes else remaining</span><br><span class="line">            val hosts &#x3D; getBlockHosts(blockLocations, offset, size)</span><br><span class="line">            PartitionedFile(</span><br><span class="line">              partition.values, file.getPath.toUri.toString, offset, size, hosts)</span><br><span class="line">          &#125;</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">          val hosts &#x3D; getBlockHosts(blockLocations, 0, file.getLen)</span><br><span class="line">          Seq(PartitionedFile(</span><br><span class="line">            partition.values, file.getPath.toUri.toString, 0, file.getLen, hosts))</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;.toArray.sortBy(_.length)(implicitly[Ordering[Long]].reverse)</span><br><span class="line"> 	</span><br><span class="line">    &#x2F;&#x2F; splitFiles 对大文件切分有效,但是如果小文件较多的话,则会产生与文件数相同的逻辑文件</span><br><span class="line">    &#x2F;&#x2F; 需要将逻辑文件合并为逻辑分区,每个逻辑分区对于一个 spark task  </span><br><span class="line">    </span><br><span class="line">    val partitions &#x3D; new ArrayBuffer[FilePartition]</span><br><span class="line">    val currentFiles &#x3D; new ArrayBuffer[PartitionedFile]</span><br><span class="line">    var currentSize &#x3D; 0L</span><br><span class="line">   </span><br><span class="line">    &#x2F;&#x2F; 截断并新建一个逻辑分区</span><br><span class="line">   def closePartition(): Unit &#x3D; &#123;</span><br><span class="line">      if (currentFiles.nonEmpty) &#123;</span><br><span class="line">        val newPartition &#x3D;</span><br><span class="line">          FilePartition(</span><br><span class="line">            partitions.size,</span><br><span class="line">            currentFiles.toArray.toSeq) </span><br><span class="line">        partitions +&#x3D; newPartition</span><br><span class="line">      &#125;</span><br><span class="line">      currentFiles.clear()</span><br><span class="line">      currentSize &#x3D; 0</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    splitFiles.foreach &#123; file &#x3D;&gt;</span><br><span class="line">      &#x2F;&#x2F; 如果已有数据量加上当前逻辑文件的长度超过了 期望分区大小,则不添加当前文件 截断为一个新的逻辑分区</span><br><span class="line">      if (currentSize + file.length &gt; maxSplitBytes) &#123;</span><br><span class="line">        closePartition()</span><br><span class="line">      &#125;</span><br><span class="line">      </span><br><span class="line">      currentSize +&#x3D; file.length + openCostInBytes</span><br><span class="line">      currentFiles +&#x3D; file</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 余量作为一个新的逻辑分区</span><br><span class="line">    closePartition()</span><br><span class="line">    </span><br><span class="line">    &#x2F;&#x2F; 创建 RDD,分区为所有的逻辑分区,readFile为文件读取逻辑 </span><br><span class="line">    new FileScanRDD(fsRelation.sparkSession, readFile, partitions)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>[CoarseGrainedSchedulerBackend.scala]</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">override def defaultParallelism(): Int &#x3D; &#123;</span><br><span class="line">    conf.getInt(&quot;spark.default.parallelism&quot;, math.max(totalCoreCount.get(), 2))</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+</blockquote>
+<p>综上:<br>val maxSplitBytes = Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))<br>即分区大小的逻辑取决于三个值:<br>defaultMaxSplitBytes: 单分区最大数据量,默认128MB<br>openCostInBytes: 单分区最小数据量,默认 4MB<br>bytesPerCore: 平均每 core 处理数据量, totalBytes/defaultParallelism<br>defaultParallelism: 取值为配置项 spark.default.parallelism (默认未配置),然后是 totalCoreCount 与 2 的较大者<br>totalCoreCount: 随 executor 的注册/注销动态变化(变化量为 spark.executor.cores),开启动态资源管理的情况下难以预估。<br>即在单分区数据量不低于 4MB,不高于 128MB 的情况下,所有数据均衡给所有并发数处理   </p>
+<h2 id="修改分区数"><a href="#修改分区数" class="headerlink" title="修改分区数"></a>修改分区数</h2><p>defaultMaxSplitBytes 决定了上限，openCostInBytes决定了下限  </p>
+<ol>
+<li>减小分区数<br>提高下限 openCostInBytes 值，并注意上限 defaultMaxSplitBytes即可  </li>
+<li>增加分区数<br>配置合理的 spark.default.parallelism 值, 并注意下限 openCostInBytes 值即可  </li>
+</ol>
+<p>注: 高压缩率 ORC 文件 4MB 解压后有 4G 左右的大小，可能需要降低下限    </p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Spark-2-3-0/" rel="tag"># Spark 2.3.0</a>
+              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
+              <a href="/tags/Spark-SQL/" rel="tag"># Spark SQL</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/" rel="prev" title="SparkSQL源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan">
+      <i class="fa fa-chevron-left"></i> SparkSQL源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019-12-27-Apache%20Spark%203.0%20Preview%20%E6%96%B0%E7%89%B9%E6%80%A7%E5%92%8C%E6%94%B9%E5%8A%A8/" rel="next" title="Apache Spark 3.0 Preview 新特性和改动">
+      Apache Spark 3.0 Preview 新特性和改动 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#源码解析"><span class="nav-number">1.</span> <span class="nav-text">源码解析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#修改分区数"><span class="nav-number">2.</span> <span class="nav-text">修改分区数</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">List</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">19</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jiulong.zhu@gmail.com" title="E-Mail → mailto:jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">List</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong-zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/",
+            identifier: "2019-12-13-SparkSQL 文件读取分区源码解析/",
+            title: "SparkSQL 文件读取及划分分区源码解析"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

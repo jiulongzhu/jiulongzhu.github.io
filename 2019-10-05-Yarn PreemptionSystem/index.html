@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="前言Yarn 使用树状层级队列组织方式来管理资源,所有 NodeManager 持有的资源聚集作为资源根队列 root 来代表集群中所有可用资源,root可有有多个子队列,子队列也可以有自己的子队列,树状层级结构的最底层为叶子队列.除 root 外,每个子队列都会持有父队列一定比例的资源 即最低配额(Configured Capacity),以及最多可持有的资源 即最高配额(Configured">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Yarn PreemptionSystem">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;index.html">
+<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:description" content="前言Yarn 使用树状层级队列组织方式来管理资源,所有 NodeManager 持有的资源聚集作为资源根队列 root 来代表集群中所有可用资源,root可有有多个子队列,子队列也可以有自己的子队列,树状层级结构的最底层为叶子队列.除 root 外,每个子队列都会持有父队列一定比例的资源 即最低配额(Configured Capacity),以及最多可持有的资源 即最高配额(Configured">
+<meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;img&#x2F;pictures&#x2F;yarn_preempt&#x2F;preempt_queue.png">
+<meta property="article:published_time" content="2019-10-04T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-03-16T10:01:28.106Z">
+<meta property="article:author" content="List">
+<meta property="article:tag" content="源码解析">
+<meta property="article:tag" content="Yarn 2.7.3">
+<meta property="article:tag" content="Yarn PreemptionSystem">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;img&#x2F;pictures&#x2F;yarn_preempt&#x2F;preempt_queue.png">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2019-10-05-Yarn%20PreemptionSystem/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>Yarn PreemptionSystem | List's Blog</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">List's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">李斯特</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-10-05-Yarn%20PreemptionSystem/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Yarn PreemptionSystem
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-10-05 00:00:00" itemprop="dateCreated datePublished" datetime="2019-10-05T00:00:00+08:00">2019-10-05</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-10-05-Yarn%20PreemptionSystem/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-10-05-Yarn PreemptionSystem/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Yarn 使用树状层级队列组织方式来管理资源,所有 NodeManager 持有的资源聚集作为资源根队列 root 来代表集群中所有可用资源,root可有有多个子队列,子队列也可以有自己的子队列,树状层级结构的最底层为叶子队列.除 root 外,每个子队列都会持有父队列一定比例的资源 即最低配额(Configured Capacity),以及最多可持有的资源 即最高配额(Configured Max Capacity).以上是 Yarn 的资源组织方式。<br>Yarn 采用两阶段资源调度模型.第一阶段 客户端向 ResourceManager 申请资源启动 ApplicationMaster 作为 Application 的资源协调和 task 监控角色;第二阶段 计算框架驱动角色通过 AppliationMaster 向 ResourceManager 申请资源运行 Worker 角色。 ApplicationMaster 和 Worker角色资源申请及分配都是异步的过程,当 NodeManager 向 ResourceManager 汇报心跳时,附带了自身正在运行和已经完成的 Container 信息,并触发了资源调度器的 NodeUpdate 事件,调度器通过以下过程尝试分配资源     </p>
+<ol>
+<li>调度器委派 RootQueue 尝试进行资源分配  </li>
+<li>RootQueue 委派其 ChildQueue(直至 LeafQueue) 尝试进行资源分配  </li>
+<li>遍历 Application 的 ResourceRequest,尝试进行分配或保留  </li>
+<li>若分配或保留成功,则同步 Queue/Application/NodeManager 信息.若分配成功,则触发 Container 的转变为 ALLOCATED 状态:RM 已经分配了资源给 APP(Attempt),但是 AM 此时还不知道,直至 AM 和 RM 的下次心跳时 AM 将对此 Container 做调度:下载依赖,准备运行环境,启动主类等;若保留成功,则该节点后续上报心跳时,将会跳过其分配调度,直至其可用资源量达到了保留资源的要求,则被保留的 Container 将会由 RESERVED 转换为 ALLOCATED 状态.保留资源固然在某种程度上算是浪费,但是保证了大 container 的 application 不会饿死      </li>
+<li>NM 监控自身运行的所有 Container 状态,对于新启动和运行状态的 Container 以及运行完成的 Container 都会通过心跳告知 RM,RM 同步信息,更新各 Container 状态.若 Container 已经完成则在 RM 端同步 Queue/Application/NodeManager 信息<br>以上是 Yarn 常规调度机制。<br>层级队列中除 root 外,每个队列可以设置其拥有父队列的最低配额和最高配额.最高配额是队列无论在任何情况下都不会超出的用量,最低配额是在队列有任务时尽可能保证的配额.为了提高集群整体的资源利用率,Yarn 引入了抢占机制:  </li>
+<li>在队列中无任务运行时,队列没有必要硬遵守保留最低配额,可以将资源借给负载较高的其他队列     </li>
+<li>当借出资源的队列接收到了新提交的应用时,将出借的资源收回以满足资源需求<br>以上是Yarn 抢占调度机制。第 1 点由 Yarn 资源调度器来实现;第 2 点只有调度器实现了 PreemptableResourceScheduler 接口,且抢占策略实现了SchedulingEditPolicy时才能实现<br>本文侧重于第 2 点,并试图解决一些在小集群申请大容器的问题    </li>
+</ol>
+<a id="more"></a>
+
+<h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>当队列 A 负载比较大时,可以临时借用负载较低队列 B 的资源.但如果有任务提交到 B 队列上,调度平台处理 B 借出的资源的方式一般有三种      </p>
+<table>
+<thead>
+<tr>
+<th>处理方式</th>
+<th>B 队列应用延时</th>
+<th>A 队列应用恢复代价</th>
+<th>浪费/重复工作量</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>等待应用完成</td>
+<td>高</td>
+<td>无</td>
+<td>无</td>
+</tr>
+<tr>
+<td>杀死应用</td>
+<td>无</td>
+<td>高</td>
+<td>高</td>
+</tr>
+<tr>
+<td>杀死应用部分容器</td>
+<td>无</td>
+<td>低</td>
+<td>一般</td>
+</tr>
+</tbody></table>
+<p>对于借出资源的处理,传统做法一般是等待 A 队列应用完成,将相应的资源还回,这样对于 B 队列应用程序来说有较高的延迟;直接杀死 A 队列应用是一种比较直接的做法,这对于一些特殊服务的影响很大 e.g. 7*24 的流式应用,优先级较高的服务(设计较好的公司会将这部分放在单独的队列甚至单独集群中以保证高可用).Yarn 抢占机制试图不彻底杀死整个应用,在考虑优先级和浪费工作量的情况下,从超分配队列中选出一些容器,释放掉资源达到还回原队列的目的   </p>
+<h2 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h2><p>源码解析主要参照:  <a href="https://www.aboutyun.com/thread-24628-1-1.html" target="_blank" rel="noopener">https://www.aboutyun.com/thread-24628-1-1.html</a> ,与 Hadoop2.7.3版本有两处差异:<br>1.Hadoop2.7.3 版本在 TempQueue 中加入了untouchableExtra变量,用以保存在队列不允许抢占时的(used absCapacity)值<br>2.Hadoop2.7.3 版本在 计算各队列瓜分空闲资源时加了一些逻辑,在ProportionalCapacityPreemptionPolicy#computeFixpointAllocation中      </p>
+<p>computeFixpointAllocation是抢占调度中最核心的逻辑: 计算每个队列的理想容量,决定了是否在该队列抢占及抢占数量的问题<br>[ProportionalCapacityPreemptionPolicy.java]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line">* 重新计算每个子队列的理想配额,存储于每个子队列的 idealAssigned 成员变量中</span><br><span class="line">* tot_guarant:父队列的理想配额</span><br><span class="line">* qAlloc:父队列的子队列</span><br><span class="line">* unassigned: tot_guarant 的 clone 对象,父队列的理想配额.将此配额分配给所有子队列</span><br><span class="line">* ignoreGuarantee:该批次子队列是否配置了最低配额.将会影响到每个队列在分配空闲配额时的权重.</span><br><span class="line">* 若为 true,没有配置最低配额,则每个队列均分空闲配额</span><br><span class="line">* 若为 false,配置了最低配额,则每个队列按 最低配额&#x2F;sum(最低配额) 的权重分配最低配额  </span><br><span class="line">*&#x2F;</span><br><span class="line">private void computeFixpointAllocation(ResourceCalculator rc,</span><br><span class="line">      Resource tot_guarant, Collection&lt;TempQueue&gt; qAlloc, Resource unassigned, </span><br><span class="line">      boolean ignoreGuarantee) &#123;</span><br><span class="line">      &#x2F;&#x2F; 按照 欠分配的程度,做排序,下文引用了类内容</span><br><span class="line">    TQComparator tqComparator &#x3D; new TQComparator(rc, tot_guarant);</span><br><span class="line">    PriorityQueue&lt;TempQueue&gt; orderedByNeed &#x3D;</span><br><span class="line">                                 new PriorityQueue&lt;TempQueue&gt;(10,tqComparator);</span><br><span class="line">    for (Iterator&lt;TempQueue&gt; i &#x3D; qAlloc.iterator(); i.hasNext();) &#123;</span><br><span class="line">      TempQueue q &#x3D; i.next();</span><br><span class="line">      if (Resources.greaterThan(rc, tot_guarant, q.current, q.guaranteed)) &#123;</span><br><span class="line">       &#x2F;&#x2F; 在配置了队列可抢占后,untouchableExtra&#x3D;0;若队列不可抢占,则超出最低配额的量算到理想配额内</span><br><span class="line">        q.idealAssigned &#x3D; Resources.add(q.guaranteed, q.untouchableExtra);</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">        q.idealAssigned &#x3D; Resources.clone(q.current);</span><br><span class="line">      &#125;</span><br><span class="line">      Resources.subtractFrom(unassigned, q.idealAssigned);</span><br><span class="line">      Resource curPlusPend &#x3D; Resources.add(q.current, q.pending);</span><br><span class="line">      &#x2F;&#x2F; 欠分配的队列</span><br><span class="line">      if (Resources.lessThan(rc, tot_guarant, q.idealAssigned, curPlusPend)) &#123;</span><br><span class="line">        orderedByNeed.add(q);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 欠分配的队列 瓜分 空闲配额  </span><br><span class="line">    while (!orderedByNeed.isEmpty()</span><br><span class="line">       &amp;&amp; Resources.greaterThan(rc,tot_guarant, unassigned,Resources.none())) &#123;</span><br><span class="line">      Resource wQassigned &#x3D; Resource.newInstance(0, 0);</span><br><span class="line">      &#x2F;&#x2F; 计算每个队列应得的权重  </span><br><span class="line">      resetCapacity(rc, unassigned, orderedByNeed, ignoreGuarantee);</span><br><span class="line">      &#x2F;&#x2F; 使用tqComparator得到最欠分配的队列  依据是 idealAssigned&#x2F;absCapacity</span><br><span class="line">      &#x2F;&#x2F;  超分配队列初始值为 1，欠分配队列初始小于 1 </span><br><span class="line">      Collection&lt;TempQueue&gt; underserved &#x3D;</span><br><span class="line">          getMostUnderservedQueues(orderedByNeed, tqComparator);</span><br><span class="line">      for (Iterator&lt;TempQueue&gt; i &#x3D; underserved.iterator(); i.hasNext();) &#123;</span><br><span class="line">        TempQueue sub &#x3D; i.next();</span><br><span class="line">       &#x2F;&#x2F; 当前轮次, 空闲配额*权重  </span><br><span class="line">        Resource wQavail &#x3D; Resources.multiplyAndNormalizeUp(rc,</span><br><span class="line">            unassigned, sub.normalizedGuarantee, Resource.newInstance(1, 1));</span><br><span class="line">        &#x2F;&#x2F;  min&#123;空闲配额*权重,最高配额-理想配额,需求配额&#125;做理想配额的增量;下文引用了 offer 方法  </span><br><span class="line">        Resource wQidle &#x3D; sub.offer(wQavail, rc, tot_guarant);</span><br><span class="line">        &#x2F;&#x2F; 队列得到的最终值,即上面的 min&#123;三元组&#125;</span><br><span class="line">        Resource wQdone &#x3D; Resources.subtract(wQavail, wQidle);</span><br><span class="line">	    &#x2F;&#x2F; 在该轮得到了资源,那么可能还能得到资源,需要参加下一轮迭代;如果没得到资源,那么就不会再得到资源了(等于最高配额或满足了需求)</span><br><span class="line">        if (Resources.greaterThan(rc, tot_guarant,</span><br><span class="line">              wQdone, Resources.none())) &#123;</span><br><span class="line">          orderedByNeed.add(sub);</span><br><span class="line">        &#125;</span><br><span class="line">        Resources.addTo(wQassigned, wQdone);</span><br><span class="line">      &#125;</span><br><span class="line">      &#x2F;&#x2F; 经过这一轮迭代后,全局空闲资源变化</span><br><span class="line">      Resources.subtractFrom(unassigned, wQassigned);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  Resource offer(Resource avail, ResourceCalculator rc,</span><br><span class="line">        Resource clusterResource) &#123;</span><br><span class="line">        &#x2F;&#x2F; 最大配额-理想配额:表示该队列最多只能拿到这么多额外资源 </span><br><span class="line">      Resource absMaxCapIdealAssignedDelta &#x3D; Resources.componentwiseMax(</span><br><span class="line">                      Resources.subtract(maxCapacity, idealAssigned),</span><br><span class="line">                      Resource.newInstance(0, 0));</span><br><span class="line">      Resource accepted &#x3D; </span><br><span class="line">          Resources.min(rc, clusterResource, </span><br><span class="line">              absMaxCapIdealAssignedDelta,</span><br><span class="line">              &#x2F;&#x2F; avail:是传入值, 全局空闲资源*队列权重,表明在当前迭代 最多可以给的空闲资源</span><br><span class="line">          Resources.min(rc, clusterResource, avail, </span><br><span class="line">           &#x2F;&#x2F; current+pending-idealAssigned:表示 满足队列中所有应用程序需要的 额外资源 </span><br><span class="line">          Resources.subtract(</span><br><span class="line">              Resources.add(current, pending), idealAssigned)));</span><br><span class="line">              </span><br><span class="line">      Resource remain &#x3D; Resources.subtract(avail, accepted);</span><br><span class="line">      &#x2F;&#x2F; 修改当前队列的理想配额  </span><br><span class="line">      Resources.addTo(idealAssigned, accepted);</span><br><span class="line">      return remain;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>欠分配比较器<br>[TQComparator.java]  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">static class TQComparator implements Comparator&lt;TempQueue&gt; &#123;</span><br><span class="line">    private ResourceCalculator rc;</span><br><span class="line">    private Resource clusterRes;</span><br><span class="line">    @Override</span><br><span class="line">    public int compare(TempQueue tq1, TempQueue tq2) &#123;</span><br><span class="line">      if (getIdealPctOfGuaranteed(tq1) &lt; getIdealPctOfGuaranteed(tq2)) &#123;</span><br><span class="line">        return -1;</span><br><span class="line">      &#125;</span><br><span class="line">      if (getIdealPctOfGuaranteed(tq1) &gt; getIdealPctOfGuaranteed(tq2)) &#123;</span><br><span class="line">        return 1;</span><br><span class="line">      &#125;</span><br><span class="line">      return 0;</span><br><span class="line">    &#125;</span><br><span class="line">    &#x2F;&#x2F; 计算 idealAssigned &#x2F; guaranteed</span><br><span class="line">    private double getIdealPctOfGuaranteed(TempQueue q) &#123;</span><br><span class="line">      double pctOver &#x3D; Integer.MAX_VALUE;</span><br><span class="line">      if (q !&#x3D; null &amp;&amp; Resources.greaterThan(</span><br><span class="line">          rc, clusterRes, q.guaranteed, Resources.none())) &#123;</span><br><span class="line">        pctOver &#x3D;</span><br><span class="line">            Resources.divide(rc, clusterRes, q.idealAssigned, q.guaranteed);</span><br><span class="line">      &#125;</span><br><span class="line">      return (pctOver);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="抢占流程"><a href="#抢占流程" class="headerlink" title="抢占流程"></a>抢占流程</h2><p>第一步: 递归获取所有队列的快照信息，重点包括 used/pending/absCapacity/maxAbsCapacity 信息<br>第二步: 设置 root 队列的初始 idealAssigned 为 absCapacity(100%)，以此为依据将 root 队列的 idealAssigned 分摊给各层队列,即第三步<br>第三步: 根据是否配置了最低配额将所有子队列分为两类，优先满足配置了最低配额的队列需求，然后剩余配额满足未配置最低配额队列的需求。对这两类队列进行资源再平衡 迭代计算出每个子队列的理想配额，即第四步。如果子队列的 used &gt; absCapacity * (1+maxIgnoredOverCapacity)，则需要从其中掠夺资源，即第五步<br>第四步: 首先按照当前使用状态(min{used,capacity})，计算出全局空闲资源量(弹性)，获得欠分配的队列；对欠分配的队列集合进行迭代以求出每个队列的 idealAssigned，在每一轮迭代中，设置每个欠分配队列所占的权重(capacity 为依据)，该权重影响队列在获取空闲资源时的增量；优先对欠分配程度最高的队列进行分配，配额为 min{全局空闲资源量 * 队列权重, maxAbsCapacity-idealAssigned, used+pending-idealAssigned},三元组中第一个值表示可分配给队列的额外配额，第二个值表示在不超过最高配额的条件下能接受的最多额外配额，第三个值表示满足应用程序资源需求的额外配额。若满足了队列的需求则将其剔除出欠分配的队列集合<br>第五步: 如果队列 used &gt; absCapacity * (1+maxIgnoredOverCapacity),那么将会释放掉 (used - idealAssigned) * naturalTerminationFactor (自然终止因子,默认0.2)的资源,则按照 <b>最小化影响 application </b>的原则(maxIgnoredOverCapacity 和 naturalTerminationFactor 都是遵从该原则)，优先释放最晚启动的 application 中的最晚分配的container，优先释放 reserved contaienr，优先释放非 AM 的 container。向常规调度器发送抢占 container 事件，并追踪这些 container 的存活时间，如果在超过了 maxWaitTime(15s)之后还没有释放，则强制常规调度器杀死   </p>
+<h2 id="一些误区"><a href="#一些误区" class="headerlink" title="一些误区"></a>一些误区</h2><ol>
+<li><b>最小化影响 application 原则是抢占过程中最优先考虑的原则</b>        </li>
+<li>抢占调度仅仅是所有队列的资源再平衡过程，<b>不为具体的应用程序调度，不为某个容器做分配或保留</b>。从设计模式原则的角度来看是合理的；抢占调度和常规调度松耦合，仅仅使用总线向常规调度器单向发送抢占/杀死容器事件，从架构分层分模块的角度来看也是合理的      </li>
+<li>抢占调度<b>不会平衡队列内部的用户资源使用量</b>，用户资源量的平衡应使用 user limit percent 或者 Fair 去做。e.g. user1 先向队列提交了 10 个 application,user2 后向队列提交了 2 个 application ,在抢占调度时 不会把 user1 占用的资源平衡给 user2 使用;且 如果队列要释放资源,那么由于 user2 的 application 后提交,反而会先于 user1 的 application 被抢占    </li>
+<li>抢占调度<b>不会使繁忙队列的资源达到最高配额，且不会使空闲队列在任意条件下都得到最低配额</b>。比如,队列 A 占用了队列 B 的所有资源，那么当 B 上有任务提交时，是 A 和 B 一起抢占 B 的最低配额资源，只不过 B 由于欠分配程度(idealAssigned/absCapacity)比较高，在抢占时多次迭代中都更优先于 A，体现出来就是 B 抢回了资源。在 B used + pending &gt;&gt; capacity 且 idealAssigned &lt; capacity 时，B 的 idealAssigned 会尽快收敛到 capacity，然后和 A 一起瓜分剩余资源。        </li>
+<li>关于抢占的量，控制该值的配置主要是两个: yarn.resourcemanager.monitor.capacity.preemption.total_preemption_per_round 每轮总抢占 默认 0.1，表示最多每轮抢占的资源占集群总资源的比例。若每轮抢占总量超过此值，则按比例在每个队列中缩减； yarn.resourcemanager.monitor.capacity.preemption.natural_termination_factor 自然终止因子 默认 0.2。考虑到容器自然终止的情况,即使不杀死容器也能在 5 * maxWaitTime(15s) 内收回 95%的资源，所以使用(used - idealAssigned)乘以该因子作为队列内最终抢占资源量，以尽量减少对 已启动 application 的影响  </li>
+<li>在 AM-RM 心跳协议 ApplicationMasterProtocol#allocate 中，AM 通过 AllocateRequest更新自己的需求，包括新增与释放 container。RM通过 AllocateResponse 响应请求，包括新分配的容器集合，释放的容器集合和<b>需要 AM 释放的被抢占容器集合</b>。抢占容器的消息类型分为两类:StrictPreemptionContract，AM 必须释放 RM 指定的容器；PreemptionContract。 AM 可以在满足同等大小资源的条件下灵活的替换 RM 指定的待抢占容器。目前 Yarn 采用的是 PreemptionContract类型，从 AM(用户)的角度来看这是可操作性很高的设计:待抢占的 worker 角色可能存储着 shuffle 文件、可能开启着重要的服务…… 恢复这些 worker 可能需要较多额外的工作，所以 RM 让 AM 去选择杀死哪些 container，只关注 AM 能不能还回等量的资源。但是抢占调度里面追踪着 RM 给 AM 指定的待抢占容器集合，如果 AM 替换掉这些容器，那么如果在抢占调度后续的周期发现这些追踪的容器存活大于 maxWaitTime，那么会直接杀死。这是一个有歧义的设计，目前 SparkOnYarn 的 YarnAllocator 没有对 RM 发给 AM 的待抢占容器集合做任何处理，即等同于等待容器超时被 RM 端杀死      </li>
+<li><b>抢占得到的资源可能不足以任何资源请求，但是抢占依旧会进行</b>。控制每轮抢占立即得到的资源总量的参数参考 “一些误区 5”。假设集群中只有两个叶子队列 A和B，最低配额都是 50%。初始状态，A 完全空闲，B 负载很高 抢占了 A 的所有资源。A 队列突然被提交了大量应用，那么在第一轮抢占时 B 是超分配的队列，idealAssigned 初值为50%，A是借出所有资源的队列 idealAssigned 初值为 0，但是 idealAssigned/absCapacity 小于 B，是最欠分配的队列 迭代时每轮都优先分配A，A 能得到的资源为: B 队列 (used 100% - idealAssigned 50%) *自然终止因子 0.2 =10%，且不能超过 集群资源100% * 每轮总抢占比例 0.1 = 10%。抢占资源量可能不足以满足任何 ResourceRequest，对于大型集群来说这个问题可能不足为虑，但是在小集群上可能会有一些难以预知的后果，尤其是在小集群上很大的资源需求(e.g. 40G)       </li>
+</ol>
+<h2 id="小集群大容器问题"><a href="#小集群大容器问题" class="headerlink" title="小集群大容器问题"></a>小集群大容器问题</h2><h3 id="问题场景"><a href="#问题场景" class="headerlink" title="问题场景"></a>问题场景</h3><p><img src="img/pictures/yarn_preempt/preempt_queue.png" alt="">   </p>
+<p>为简单起见，Yarn 使用默认配置且在不考虑: 虚拟核，AM/Worker 的区别和分配/保留的区别。集群有三台服务器，每台服务器有 80G 内存，共计有 240G 的内存资源。有两个叶子队列: A 和 B，最低配额都是 50%，最高配额都是 100%。当 A 负载较高而 B 空闲时，A 使用了整个集群的资源，A 中只有一个应用 app_A，启动的 container 都是 4G 大小。此时有新任务 app_B 提交到队列 B，且需要的资源量大于 B 的最低配额，则在第一次抢占时 B 队列会获得(240-120) * 0.2 自然终止因子 = 24G 的资源，且该轮抢占最大资源量不能超过 240 * 0.1 每轮抢占资源量比例 = 24G，这些抢占的 contaienr 均匀分布在集群的所有节点上，即图中红色 container 为被抢占，绿色 container 为未被抢占    </p>
+<ul>
+<li><p>场景 1: 假设 app_B 待分配的 container 大小为 40G，每个节点上只有 8G 的空闲资源，不足以启动该 container。且即使这些被抢占的 container 都分布在一个节点上，也不足以启动 40G JVM。 抢占虽然发生，但是 B 没有使用，最终这些抢占释放的资源会被 app_A 利用。这样就陷入了由周期性抢占导致的困局: 抢占调度 平衡资源-&gt; B 无法利用资源-&gt; A 可以利用资源-&gt;A 超分配,B 欠分配-&gt;抢占调度 平衡资源-&gt;…..  具体表现是: B 中的任务无法启动，A及app_A 中最近启动的容器一直处于 被抢占-&gt;启动成为最新-&gt;被抢占……的循环中  </p>
+</li>
+<li><p>场景 2: 假设 app_B 待分配的 container 大小为 20G，每个节点上只有 8G 的空闲资源，不足以启动 20G 的 container，也会陷入周期性抢占导致的困局。但是如果这些被抢占的 container 分布在一个节点上，足以启动 20G 的 JVM。这是因为 JVM 大小不高于每轮抢占资源总量且不大于每台服务器内存总量的缘故    </p>
+</li>
+</ul>
+<p>注: 常规调度器不希望一个容器占有节点太多的资源，所以对于大 container，不一定会做保留<br>[LeafQueue.java]</p>
+<pre><code>boolean shouldAllocOrReserveNewContainer(FiCaSchedulerApp application,
+      Priority priority, Resource required) {
+    int requiredContainers = application.getTotalRequiredResources(priority);
+    int reservedContainers = application.getNumReservedContainers(priority);
+    int starvation = 0;
+    if (reservedContainers &gt; 0) {
+      float nodeFactor = 
+          Resources.ratio(
+              resourceCalculator, required, getMaximumAllocation()
+              );      
+       // 使用所需节点的百分比来对大型容器施加偏差…
+       // 防止需要使用整个节点的极端情况
+      // Use percentage of node required to bias against large containers...
+      // Protect against corner case where you need the whole node with
+      // Math.min(nodeFactor, minimumAllocationFactor)
+      starvation = 
+          (int)((application.getReReservations(priority) / (float)reservedContainers) * 
+                (1.0f - (Math.min(nodeFactor, getMinimumAllocationFactor())))
+               );  
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(&quot;needsContainers:&quot; +
+            &quot; app.#re-reserve=&quot; + application.getReReservations(priority) + 
+            &quot; reserved=&quot; + reservedContainers + 
+            &quot; nodeFactor=&quot; + nodeFactor + 
+            &quot; minAllocFactor=&quot; + getMinimumAllocationFactor() +
+            &quot; starvation=&quot; + starvation);
+      }
+    }
+    return (((starvation + requiredContainers) - reservedContainers) &gt; 0);</code></pre><h3 id="解决方案"><a href="#解决方案" class="headerlink" title="解决方案"></a>解决方案</h3><p><b>方案 1</b><br>对于场景 1，可以从两个角度优化: 提高配置增加每轮抢占资源量及自然终止因子，以提高每轮抢占可以立即得到的资源量；规定应用程序单个容器的大小不能高于每轮抢占资源量。将场景 1 的问题转换问场景 2 的问题<br>对于场景 2，尽可能使被抢占容器分布在同一个节点上，为”最小化影响 Application”，可以在每个节点上按照设定的选取规则尝试抢占容器(但是并未真的杀死)以满足大容器并计算抢占代价(sum(currentTime-containerStartTime))，选择抢占代价最低的节点抢占。  </p>
+<p>优点:</p>
+<ol>
+<li>可以提高启动大容器的可能性，减少大容器调度延时    </li>
+</ol>
+<p>缺点:  </p>
+<ol>
+<li>增加每轮抢占资源量和自然终止因子,将增加集群和队列资源在平衡点附近抖动程度(队列释放-&gt;阶梯式下降,队列获取-&gt;阶梯式上升)。最好配合yarn.resourcemanager.monitor.capacity.preemption.max_ignored_over_capacity 属性使用。还是最小化影响原则，减小借用资源不多的队列的抖动      </li>
+<li>提高抢占配置，提供能够启动大容器的资源量，将增加了被杀死的容器数量，扩大了影响范围，恢复任务产生的无效工作量也会增加      </li>
+<li>尽可能在节点上抢占容器启动大容器，而不是在集群所有节点上抢占最晚启动的应用程序，导致这些节点资源利用率抖动极大  </li>
+<li>由于抢占调度和常规调度解耦，抢占调度在节点上抢占出大容器的空间，常规调度也未必在该空间内分配大容器  </li>
+</ol>
+<p>仅限于抢占频率较低的场景，并使用某些参量(欠分配队列 totalPending, minResourceRequest)来决定 走默认抢占逻辑还是集中在节点上释放资源      </p>
+<p><b>方案 2</b>  </p>
+<p><a href="https://jiulongzhu.github.io/2019/10/28/Yarn-ReservationSystem/">资源预订系统</a></p>
+<p><b>方案 3</b><br>标签系统：对节点进行分类或分组的一种方式，应用程序可以指定在特定标签的节点执行。可以配置资源队列可以访问的节点标签集合，应用程序只能提交到这些包含该标签的队列上来使用这些具有标签的节点的计算资源<br>yarn.scheduler.capacity.&lt;queue_path&gt;.capacity 属性是<b>默认标签</b>(无标签)的资源配置，所有的队列都可以访问无标签的节点；yarn.scheduler.capacity.&lt;queue_path&gt;.accessible-node-labels 属性用于指定队列可访问的标签节点，在不指定的情况下可以继承父队列的权限，若希望让某队列只能访问无标签节点，设置为空格即可；yarn.scheduler.capacity.&lt;queue_path&gt;.accessible-node-labels.&lt;label&gt;.capacity 指定队列可以使用该标签资源的最低配额；yarn.scheduler.capacity.&lt;queue_path&gt;.accessible-node-labels.&lt;label&gt;.maximum-capacity 指定队列可以使用该标签资源的最高配额     </p>
+<p>适用场景 </p>
+<ol>
+<li>机构路由: BU A的任务，只能运行在具有 A 标签的 NM 上    </li>
+<li>服务路由: Hbase 的数据分析任务，只能运行在具有 Hbase 标签的 NM 上    </li>
+<li>特殊机器: 只有深度学习任务可以运行在具有 GPU 标签的 NM 上        </li>
+</ol>
+<p>新增或修改一些节点，配置其标签，并设置仅有某些队列具有该标签资源的使用权限，大内存应用程序专用    </p>
+<p>优点:</p>
+<ol>
+<li>可以运行大内存应用，且 SLA 高  </li>
+</ol>
+<p>缺点:  </p>
+<ol>
+<li>标签资源空闲时其他应用无法使用，集群资源利用率相对较低  </li>
+<li>需要额外的服务器成本  </li>
+</ol>
+<h2 id="相关参数"><a href="#相关参数" class="headerlink" title="相关参数"></a>相关参数</h2><ul>
+<li>yarn.resourcemanager.scheduler.monitor.enable<br>设置为 true ,启用抢占  </li>
+<li>yarn.resourcemanager.scheduler.monitor.policies<br>启用抢占时,抢占策略主类.RM 将配置的主类启动在独立线程中,周期性的执行抢占.默认是org.apache.hadoop.yarn.server.resourcemanager.monitor.capacity.ProportionalCapacityPreemptionPolicy  </li>
+<li>yarn.resourcemanager.monitor.capacity.preemption.monitoring_interval<br>周期性执行抢占策略的间隔,单位毫秒,默认是 3000  </li>
+<li>yarn.resourcemanager.monitor.capacity.preemption.max_wait_before_kill<br>自容器被标记为被抢占到抢占策略强制杀死该容器的时间,单位毫秒,默认15000.留给 AM 灵活杀死 container 的时间,如果希望快速收回资源可以适当调小    </li>
+<li>yarn.resourcemanager.monitor.capacity.preemption.total_preemption_per_round<br>每轮抢占最大资源总量占集群无标签资源的比例,默认 0.1. 即每轮抢占最多可以收回相当于集群无标签资源总量的10%,若每轮抢占资源量超过此值,则按比例在每个待抢占队列进行缩减    </li>
+<li>yarn.resourcemanager.monitor.capacity.preemption.max_ignored_over_capacity<br>忽略抢占的阈值,默认 0.1.当队列资源使用量 used &gt; absCapacity(1+0.1)时,认为其应该还回资源,才会抢占容器.用于避免资源消耗和配额的剧烈波动,最小化影响      </li>
+<li>yarn.resourcemanager.monitor.capacity.preemption.natural_termination_factor<br>自然终止因子,统计发现值为 0.5 或者为 0 时,都会在 5* 15秒(上述第三配置项)内收回 95%的资源,默认 0.2.为每个队列设置抢占目标后,再乘以此值作为最终的抢占目标.假设第一周期,某队列待抢占值为 10G,那么最终抢占为 2G.第二周期待抢占值为 7G,最终抢占为 1.4G…以一种平滑的方式回收,降低波动.可以适当增加此值以加快回收速度  </li>
+</ul>
+<h2 id="一点思考"><a href="#一点思考" class="headerlink" title="一点思考"></a>一点思考</h2><ol>
+<li>方案设计时考虑了很多，从尝试借鉴 CPU 抢占、内存 SWAP 模式、用户体验、架构分层等角度思考设计一个抢占调度系统的想法。有时间再整理吧     </li>
+<li>关于开源抢占系统通用优化的初步想法<br>调度系统抢占的容器先不杀死，而是打一个标记，比如:MARK_PREEMPTED_KILL,在资源分配时优先使用这些标记的节点或者资源紧缺时使用 以尽可能使容器能自然终止(类似 jvm软引用)，无资源分配时则不杀死。其一可以保证 在周期性抢占造成的困局中，队列使用不到这些资源时，这些资源不会被反复无效调度，而是继续运行任务；其二 或许能提高资源抢占相应速度，代价是需要完善常规调度的逻辑，分配时如何处理MARK_PREEMPTED_KILL，保留时如何处理MARK_PREEMPTED_KILL…    </li>
+</ol>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html</a><br><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption</a><br><a href="https://www.aboutyun.com/thread-24628-1-1.html" target="_blank" rel="noopener">https://www.aboutyun.com/thread-24628-1-1.html</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
+              <a href="/tags/Yarn-2-7-3/" rel="tag"># Yarn 2.7.3</a>
+              <a href="/tags/Yarn-PreemptionSystem/" rel="tag"># Yarn PreemptionSystem</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019-09-15-Yarn:movetoqueue%E5%AF%BC%E8%87%B4%E7%9A%84UIcontainer%E6%B3%84%E9%9C%B2%E9%97%AE%E9%A2%98%E7%9A%84%E4%BF%AE%E5%A4%8D%E6%80%9D%E8%B7%AF/" rel="prev" title="Yarn movetoqueue 导致的UI指标错误的修复思路">
+      <i class="fa fa-chevron-left"></i> Yarn movetoqueue 导致的UI指标错误的修复思路
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019-10-28-Yarn%20ReservationSystem/" rel="next" title="Yarn ReservationSystem">
+      Yarn ReservationSystem <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#概述"><span class="nav-number">2.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#源码解析"><span class="nav-number">3.</span> <span class="nav-text">源码解析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#抢占流程"><span class="nav-number">4.</span> <span class="nav-text">抢占流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#一些误区"><span class="nav-number">5.</span> <span class="nav-text">一些误区</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#小集群大容器问题"><span class="nav-number">6.</span> <span class="nav-text">小集群大容器问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#问题场景"><span class="nav-number">6.1.</span> <span class="nav-text">问题场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#解决方案"><span class="nav-number">6.2.</span> <span class="nav-text">解决方案</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#相关参数"><span class="nav-number">7.</span> <span class="nav-text">相关参数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#一点思考"><span class="nav-number">8.</span> <span class="nav-text">一点思考</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考"><span class="nav-number">9.</span> <span class="nav-text">参考</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">List</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">19</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jiulong.zhu@gmail.com" title="E-Mail → mailto:jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">List</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong-zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2019-10-05-Yarn%20PreemptionSystem/",
+            identifier: "2019-10-05-Yarn PreemptionSystem/",
+            title: "Yarn PreemptionSystem"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

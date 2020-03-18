@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="概述SparkOnYarn 程序的退出码种类比较繁多逻辑杂乱，主要包括：     Yarn 退出码       Spark 退出码     JVM 退出码     其中一些退出码可能是多个环节共同作用最终展现到日志上，e.g. SparkOnYarn 程序封装 driver&#x2F;executor 的 ContainerLauchContext 时启动命令时加入”-XX:OnOutOfMemoryErr">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark On Yarn 任务退出码">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-11-18-SparkOnYarn%20%E4%BB%BB%E5%8A%A1%E9%80%80%E5%87%BA%E7%A0%81&#x2F;index.html">
+<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:description" content="概述SparkOnYarn 程序的退出码种类比较繁多逻辑杂乱，主要包括：     Yarn 退出码       Spark 退出码     JVM 退出码     其中一些退出码可能是多个环节共同作用最终展现到日志上，e.g. SparkOnYarn 程序封装 driver&#x2F;executor 的 ContainerLauchContext 时启动命令时加入”-XX:OnOutOfMemoryErr">
+<meta property="article:published_time" content="2019-11-17T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-03-16T10:01:28.109Z">
+<meta property="article:author" content="List">
+<meta property="article:tag" content="Spark 2.3.0">
+<meta property="article:tag" content="Yarn 2.7.3">
+<meta property="article:tag" content="Spark On Yarn ExitCode">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2019-11-18-SparkOnYarn%20%E4%BB%BB%E5%8A%A1%E9%80%80%E5%87%BA%E7%A0%81/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>Spark On Yarn 任务退出码 | List's Blog</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">List's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">李斯特</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-11-18-SparkOnYarn%20%E4%BB%BB%E5%8A%A1%E9%80%80%E5%87%BA%E7%A0%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Spark On Yarn 任务退出码
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-11-18 00:00:00" itemprop="dateCreated datePublished" datetime="2019-11-18T00:00:00+08:00">2019-11-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-11-18-SparkOnYarn%20%E4%BB%BB%E5%8A%A1%E9%80%80%E5%87%BA%E7%A0%81/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-11-18-SparkOnYarn 任务退出码/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>SparkOnYarn 程序的退出码种类比较繁多逻辑杂乱，主要包括：   </p>
+<ol>
+<li>Yarn 退出码      </li>
+<li>Spark 退出码    </li>
+<li>JVM 退出码   </li>
+</ol>
+<p>其中一些退出码可能是多个环节共同作用最终展现到日志上，e.g. SparkOnYarn 程序封装 driver/executor 的 ContainerLauchContext 时启动命令时加入”-XX:OnOutOfMemoryError=kill %p”，所以当程序 OOM 使用默认 signal(15) 终止 Container 脚本启动的 JVM，上报到 SparkOnYarn 日志的退出码是 143(128+15)。 </p>
+<a id="more"></a>
+
+<p>以下均基于 Hadoop2.7.3，Spark 2.3-SNAPSHOT，jdk1.8 </p>
+<h2 id="Yarn-退出码"><a href="#Yarn-退出码" class="headerlink" title="Yarn 退出码"></a>Yarn 退出码</h2><p>Yarn container 的退出码分为两类: container-executor 和 container。container 是 Yarn 资源调度的基础，也是资源隔离的基础，在同一台服务器上运行的多个container 之间内存、CPU和权限等方面不应该相互影响(实际上内存和 CPU 没有做到绝对的资源隔离,仅仅监控内存/不管 CPU,在此不细说)。container-executor 负责使用 Yarn 参考 ContainerLaunchContext 上下文环境组装的脚本 初始化、启动和终止 Container，因此其错误码体系更像是操作系统的进程退出码。container-executor 共分两类: 通用的 DefaultContainerExecutor，所有的 Container 的用户均为启动 NodeManager 的用户；LinuxContainerExecutor，每个 Container 进程可以由不同用户启动，并支持 CGROUP 和 ACL。container 错误码体系适用于所有容器，是 Yarn 框架的一部分，应用程序错误码体系的补充。即 container-executor 错误码体系更靠近操作系统，container 错误码体系更靠近应用程序。  </p>
+<h3 id="container-executor"><a href="#container-executor" class="headerlink" title="container-executor"></a>container-executor</h3><p>仅列出 LinuxContainerExecutor 错误码体系  </p>
+<table>
+<thead>
+<tr>
+<th align="left">错误码</th>
+<th align="left">错误信息</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">INVALID_ARGUMENT_NUMBER</td>
+<td align="left">1.启动脚本给定输入参数数量不符 2.未能成功初始化</td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">INVALID_USER_NAME</td>
+<td align="left">启动脚本所属用户不存在</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">INVALID_COMMAND_PROVIDED</td>
+<td align="left">无法识别被提供的启动命令</td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">SUPER_USER_NOT_ALLOWED_TO_RUN_TASKS</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">INVALID_NM_ROOT_DIRS</td>
+<td align="left">启动脚本参数定义的 NM root 目录不存在</td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">SETUID_OPER_FAILED</td>
+<td align="left">无法设置 UID 或 GID</td>
+</tr>
+<tr>
+<td align="left">7</td>
+<td align="left">UNABLE_TO_EXECUTE_CONTAINER_SCRIPT</td>
+<td align="left">无法运行启动脚本</td>
+</tr>
+<tr>
+<td align="left">8</td>
+<td align="left">UNABLE_TO_SIGNAL_CONTAINER</td>
+<td align="left">无法向指定容器发送信号</td>
+</tr>
+<tr>
+<td align="left">9</td>
+<td align="left">INVALID_CONTAINER_PID</td>
+<td align="left">设置的启动命令 PID 不大于 0或不合法</td>
+</tr>
+<tr>
+<td align="left">10</td>
+<td align="left">ERROR_RESOLVING_FILE_PATH</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">11</td>
+<td align="left">RELATIVE_PATH_COMPONENTS_IN_FILE_PATH</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">12</td>
+<td align="left">UNABLE_TO_STAT_FILE</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">13</td>
+<td align="left">FILE_NOT_OWNED_BY_ROOT</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">14</td>
+<td align="left">PREPARE_CONTAINER_DIRECTORIES_FAILED</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">15</td>
+<td align="left">INITIALIZE_CONTAINER_FAILED</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">16</td>
+<td align="left">PREPARE_CONTAINER_LOGS_FAILED</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">17</td>
+<td align="left">INVALID_LOG_DIR</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">18</td>
+<td align="left">OUT_OF_MEMORY</td>
+<td align="left">启动命令未能获得足够的内存</td>
+</tr>
+<tr>
+<td align="left">19</td>
+<td align="left">INITIALIZE_DISTCACHEFILE_FAILED</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">20</td>
+<td align="left">INITIALIZE_USER_FAILED</td>
+<td align="left">无法获取用户的 NM 目录</td>
+</tr>
+<tr>
+<td align="left">21</td>
+<td align="left">UNABLE_TO_BUILD_PATH</td>
+<td align="left">启动脚本创建路径失败</td>
+</tr>
+<tr>
+<td align="left">22</td>
+<td align="left">INVALID_CONTAINER_EXEC_PERMISSIONS</td>
+<td align="left">启动脚本没有设置正确的执行权限</td>
+</tr>
+<tr>
+<td align="left">23</td>
+<td align="left">PREPARE_JOB_LOGS_FAILED</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">24</td>
+<td align="left">INVALID_CONFIG_FILE</td>
+<td align="left">container-executor.cfg文件不存在或者权限不正确</td>
+</tr>
+<tr>
+<td align="left">25</td>
+<td align="left">SETSID_OPER_FAILED</td>
+<td align="left">设置容器的 SID(sessionId?)失败</td>
+</tr>
+<tr>
+<td align="left">26</td>
+<td align="left">WRITE_PIDFILE_FAILED</td>
+<td align="left">无法将 PID 写入 PID 文件</td>
+</tr>
+<tr>
+<td align="left">27</td>
+<td align="left">WRITE_CGROUP_FAILED</td>
+<td align="left">无法写入CGROUP 信息(/sys/fs/cgroup ?)</td>
+</tr>
+<tr>
+<td align="left">其他</td>
+<td align="left">UNKNOWN_ERROR</td>
+<td align="left">需要依据错误信息具体分析</td>
+</tr>
+</tbody></table>
+<p>以上主要参考 hadoop-project/hadoop-yarn-project/hadoop-yarn/hadoop-yarn-server-nodemanager/src/main/native/container-executor/impl/container-executor.h   </p>
+<h3 id="container"><a href="#container" class="headerlink" title="container"></a>container</h3><p>LinuxContainerExecutor 和 DefaultContainerExecutor 通用的错误码体系，Yarn 框架的一部分，可作为应用程序错误码的补充。  </p>
+<table>
+<thead>
+<tr>
+<th align="left">错误码</th>
+<th align="left">错误信息</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">0</td>
+<td align="left">SUCCESS</td>
+<td align="left">容器成功退出</td>
+</tr>
+<tr>
+<td align="left">-1000</td>
+<td align="left">INVALID</td>
+<td align="left">容器退出码的初始值</td>
+</tr>
+<tr>
+<td align="left">-100</td>
+<td align="left">ABORTED</td>
+<td align="left">容器被框架杀死,可能是 app 释放容器或 nm 失败丢失容器导致</td>
+</tr>
+<tr>
+<td align="left">-101</td>
+<td align="left">DISKS_FAILED</td>
+<td align="left">NM 本地目录数量超过阈值</td>
+</tr>
+<tr>
+<td align="left">-102</td>
+<td align="left">PREEMPTED</td>
+<td align="left">容器被抢占</td>
+</tr>
+<tr>
+<td align="left">-103</td>
+<td align="left">KILLED_EXCEEDED_VMEM</td>
+<td align="left">虚拟内存超限被杀</td>
+</tr>
+<tr>
+<td align="left">-104</td>
+<td align="left">KILLED_EXCEEDED_PMEM</td>
+<td align="left">物理内存超限被杀</td>
+</tr>
+<tr>
+<td align="left">-105</td>
+<td align="left">KILLED_BY_APPMASTER</td>
+<td align="left">被 am 请求终止</td>
+</tr>
+<tr>
+<td align="left">-106</td>
+<td align="left">KILLED_BY_RESOURCEMANAGER</td>
+<td align="left">被 rm 请求终止</td>
+</tr>
+<tr>
+<td align="left">-107</td>
+<td align="left">KILLED_AFTER_APP_COMPLETION</td>
+<td align="left">app 完成后被杀死</td>
+</tr>
+</tbody></table>
+<p>以上主要参考 org.apache.hadoop.yarn.api.records.ContainerExitStatus.java  </p>
+<h3 id="Application"><a href="#Application" class="headerlink" title="Application"></a>Application</h3><p>通用的 Yarn Application 状态码定义  </p>
+<table>
+<thead>
+<tr>
+<th align="left">错误码</th>
+<th align="left">错误信息</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"></td>
+<td align="left">UNDEFINED</td>
+<td align="left">APP 未完成时的状态码(初始值)</td>
+</tr>
+<tr>
+<td align="left"></td>
+<td align="left">SUCCEEDED</td>
+<td align="left">APP 成功完成</td>
+</tr>
+<tr>
+<td align="left"></td>
+<td align="left">FAILED</td>
+<td align="left">APP 失败</td>
+</tr>
+<tr>
+<td align="left"></td>
+<td align="left">KILLED</td>
+<td align="left">APP 被提交用户或者管理员用户终止</td>
+</tr>
+</tbody></table>
+<p>以上参考 org.apache.hadoop.yarn.api.records.FinalApplicationStatus.java  </p>
+<h2 id="Spark-退出码"><a href="#Spark-退出码" class="headerlink" title="Spark 退出码"></a>Spark 退出码</h2><h3 id="Executor-退出码"><a href="#Executor-退出码" class="headerlink" title="Executor 退出码"></a>Executor 退出码</h3><table>
+<thead>
+<tr>
+<th align="left">错误码</th>
+<th align="left">错误信息</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">50</td>
+<td align="left">UNCAUGHT_EXCEPTION</td>
+<td align="left">触发了默认的异常处理器(?)</td>
+</tr>
+<tr>
+<td align="left">51</td>
+<td align="left">UNCAUGHT_EXCEPTION_TWICE</td>
+<td align="left">触发了默认的异常处理器,并在记录异常时触发了新的异常(?)</td>
+</tr>
+<tr>
+<td align="left">52</td>
+<td align="left">OOM</td>
+<td align="left">触发了默认的异常处理器,且异常是 OutOfMemoryError</td>
+</tr>
+<tr>
+<td align="left">53</td>
+<td align="left">DISK_STORE_FAILED_TO_CREATE_DIR</td>
+<td align="left">DiskStore 未能创建本地临时目录</td>
+</tr>
+<tr>
+<td align="left">54</td>
+<td align="left">EXTERNAL_BLOCK_STORE_FAILED_TO_INITIALIZE</td>
+<td align="left">ExternalBlockStore 未能初始化</td>
+</tr>
+<tr>
+<td align="left">55</td>
+<td align="left">EXTERNAL_BLOCK_STORE_FAILED_TO_CREATE_DIR</td>
+<td align="left">ExternalBlockStore 未能创建本地临时目录</td>
+</tr>
+<tr>
+<td align="left">56</td>
+<td align="left">HEARTBEAT_FAILURE</td>
+<td align="left">executor 向 driver 发送心跳信号失败次数超过了 spark.executor.heartbeat.maxFailures</td>
+</tr>
+</tbody></table>
+<p>以上主要参考 org.apache.spark.executor.ExecutorExitCode.scala  </p>
+<h3 id="ApplicationMaster-退出码"><a href="#ApplicationMaster-退出码" class="headerlink" title="ApplicationMaster 退出码"></a>ApplicationMaster 退出码</h3><table>
+<thead>
+<tr>
+<th align="left">错误码</th>
+<th align="left">错误信息</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">0</td>
+<td align="left">EXIT_SUCCESS</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">10</td>
+<td align="left">EXIT_UNCAUGHT_EXCEPTION</td>
+<td align="left">未捕获的异常(此列表之外的异常)退出</td>
+</tr>
+<tr>
+<td align="left">11</td>
+<td align="left">EXIT_MAX_EXECUTOR_FAILURES</td>
+<td align="left">失败的 executor 数量超过目标值。目标值优先取 spark.yarn.max.executor.failures(默认无),未配置 且 开启动态资源管理时取spark.dynamicAllocation.maxExecutors 的 2 倍,其他情况则取 spark.executor.instances 的 2 倍</td>
+</tr>
+<tr>
+<td align="left">12</td>
+<td align="left">EXIT_REPORTER_FAILURE</td>
+<td align="left">应用进度汇报线程(progress reporter)的失败次数超过spark.yarn.scheduler.reporterThread.maxFailures(默认 5)</td>
+</tr>
+<tr>
+<td align="left">13</td>
+<td align="left">EXIT_SC_NOT_INITED</td>
+<td align="left">SparkContext 初始化时间超过 spark.yarn.am.waitTime(默认 100s)</td>
+</tr>
+<tr>
+<td align="left">14</td>
+<td align="left">EXIT_SECURITY</td>
+<td align="left">未启用</td>
+</tr>
+<tr>
+<td align="left">15</td>
+<td align="left">EXIT_EXCEPTION_USER_CLASS</td>
+<td align="left">用户MainClass 抛出异常</td>
+</tr>
+<tr>
+<td align="left">16</td>
+<td align="left">EXIT_EARLY</td>
+<td align="left">在 APP 结束前调用了 ShutdownHook</td>
+</tr>
+</tbody></table>
+<p>以上参考 org.apache.spark.deploy.yarn.ApplicationMaster.scala  </p>
+<h2 id="JVM-退出码"><a href="#JVM-退出码" class="headerlink" title="JVM 退出码"></a>JVM 退出码</h2><p>数值上超过 128 的退出码很有可能是由 Unix Signal 触发的程序关闭导致的，可以通过用退出码减去 128来计算 Unix Signal。例如最常见的 137 退出码是由 kill -9 强制杀死抛出的，143 退出码一般是由 kill 或 kill -15 杀死抛出的。 </p>
+<table>
+<thead>
+<tr>
+<th align="left">错误码</th>
+<th align="left">错误信息</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">137</td>
+<td align="left">FORCE_KILLED</td>
+<td align="left">128+9,即是由 kill -9 命令强制终止,一般是虚拟或物理内存超限导致</td>
+</tr>
+<tr>
+<td align="left">143</td>
+<td align="left">TERMINATED</td>
+<td align="left">128+15,即是由 kill 命令终止的,一般是 OOM/FGC 导致</td>
+</tr>
+<tr>
+<td align="left">154</td>
+<td align="left">LOST</td>
+<td align="left">128+27,虚拟计时器过期(?)</td>
+</tr>
+</tbody></table>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line">Then I ran the program in one terminal window (java Death; echo $?) while iterating through all kill signals (0-31) in another:</span><br><span class="line">kill -$SIGNAL $(jps | grep Death | cut -d\  -f1)</span><br><span class="line"></span><br><span class="line">signal	    shutdown runs hook exit code    comment</span><br><span class="line">default (15)	yes	yes	143	SIGTERM is the default unix kill signal</span><br><span class="line">0	no	-	-	</span><br><span class="line">1 (SIGHUP)	yes	yes	129	</span><br><span class="line">2 (SIGINT)	yes	yes	130	SIGINT is the signal sent on ^C</span><br><span class="line">3 (SIGQUIT)	no	-	-	Makes the JVM dump threads &#x2F; stack-traces</span><br><span class="line">4 (SIGILL)	yes	no	134	Makes the JVM write a core dump and abort on trap 6</span><br><span class="line">5	yes	no	133	Makes the JVM exit with &quot;Trace&#x2F;BPT trap: 5&quot;</span><br><span class="line">6 (SIGABRT)	yes	no	134	Makes the JVM exit with &quot;Abort trap: 6&quot;</span><br><span class="line">7	yes	no	135	Makes the JVM exit with &quot;EMT trap: 7&quot;</span><br><span class="line">8 (SIGFPE)	yes	no	134	Makes the JVM write a core dump and abort on trap 6</span><br><span class="line">9 (SIGKILL)	yes	no	137	The JVM is forcibly killed (exits with &quot;Killed: 9&quot;)</span><br><span class="line">10 (SIGBUS)	yes	no	134	Emulates a &quot;Bus Error&quot;</span><br><span class="line">11 (SIGSEGV)	yes	no	134	Emulates a &quot;Segmentation fault&quot;</span><br><span class="line">12	yes	no	140	Makes the JVM exit with &quot;Bad system call: 12&quot;</span><br><span class="line">13	no	-	-	</span><br><span class="line">14	yes	no	142	Makes the JVM exit with &quot;Alarm clock: 14&quot;</span><br><span class="line">15 (SIGTERM)	yes	yes	143	This is the default unix kill signal</span><br><span class="line">16	no	-	-	</span><br><span class="line">17	no	-	145	Stops the application (sends it to the background), same as ^Z</span><br><span class="line">18	no	-	146	Stops the application (sends it to the background), same as ^Z</span><br><span class="line">19	no	-	-	</span><br><span class="line">20	no	-	-	</span><br><span class="line">21	no	-	149	Stops the application (sends it to the background), same as ^Z</span><br><span class="line">22	no	-	150	Stops the application (sends it to the background), same as ^Z</span><br><span class="line">23	no	-	-	</span><br><span class="line">24	yes	no	152	Makes the JVM exit with &quot;Cputime limit exceeded: 24&quot;</span><br><span class="line">25	no	-	-	</span><br><span class="line">26	yes	no	154	Makes the JVM exit with &quot;Virtual timer expired: 26&quot;</span><br><span class="line">27	yes	no	155	Makes the JVM exit with &quot;Profiling timer expired: 27&quot;</span><br><span class="line">28	no	-	-	</span><br><span class="line">29	no	-	-	</span><br><span class="line">30	yes	no	158	Makes the JVM exit with &quot;User defined signal 1: 30&quot;</span><br><span class="line">31	yes	no	134	Makes the JVM exit on Segmentation fault</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">This list was compiled using (a quite old) Oracle Hotspot Java 8 EA on Mac OS X:</span><br><span class="line">java version &quot;1.8.0-ea&quot;</span><br><span class="line">Java(TM) SE Runtime Environment (build 1.8.0-ea-b65)</span><br><span class="line">Java HotSpot(TM) 64-Bit Server VM (build 25.0-b09, mixed mode)</span><br></pre></td></tr></table></figure>
+
+<p>以上主要参考 <a href="http://journal.thobe.org/2013/02/jvms-and-kill-signals.html" target="_blank" rel="noopener">http://journal.thobe.org/2013/02/jvms-and-kill-signals.html</a></p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ol>
+<li>hadoop-project/hadoop-yarn-project/hadoop-yarn/hadoop-yarn-server-nodemanager/src/main/native/container-executor/impl/container-executor.h   </li>
+<li>org.apache.hadoop.yarn.api.records.ContainerExitStatus.java    </li>
+<li>org.apache.spark.executor.ExecutorExitCode.scala  </li>
+<li><a href="http://journal.thobe.org/2013/02/jvms-and-kill-signals.html" target="_blank" rel="noopener">http://journal.thobe.org/2013/02/jvms-and-kill-signals.html</a>  </li>
+<li>org.apache.hadoop.yarn.server.nodemanager.ExitCode.java</li>
+<li>org.apache.spark.deploy.yarn.ApplicationMaster.scala  </li>
+<li>org.apache.hadoop.yarn.api.records.FinalApplicationStatus.java  </li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Spark-2-3-0/" rel="tag"># Spark 2.3.0</a>
+              <a href="/tags/Yarn-2-7-3/" rel="tag"># Yarn 2.7.3</a>
+              <a href="/tags/Spark-On-Yarn-ExitCode/" rel="tag"># Spark On Yarn ExitCode</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019-11-12-Yarn%20User%20Headroom/" rel="prev" title="Yarn User Headroom">
+      <i class="fa fa-chevron-left"></i> Yarn User Headroom
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019-11-22-Improved%20MapPartitions%20In%20Spark/" rel="next" title="Improved MapPartitions In Spark">
+      Improved MapPartitions In Spark <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#概述"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Yarn-退出码"><span class="nav-number">2.</span> <span class="nav-text">Yarn 退出码</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#container-executor"><span class="nav-number">2.1.</span> <span class="nav-text">container-executor</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#container"><span class="nav-number">2.2.</span> <span class="nav-text">container</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Application"><span class="nav-number">2.3.</span> <span class="nav-text">Application</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Spark-退出码"><span class="nav-number">3.</span> <span class="nav-text">Spark 退出码</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Executor-退出码"><span class="nav-number">3.1.</span> <span class="nav-text">Executor 退出码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ApplicationMaster-退出码"><span class="nav-number">3.2.</span> <span class="nav-text">ApplicationMaster 退出码</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#JVM-退出码"><span class="nav-number">4.</span> <span class="nav-text">JVM 退出码</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考"><span class="nav-number">5.</span> <span class="nav-text">参考</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">List</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">19</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jiulong.zhu@gmail.com" title="E-Mail → mailto:jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">List</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong-zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2019-11-18-SparkOnYarn%20%E4%BB%BB%E5%8A%A1%E9%80%80%E5%87%BA%E7%A0%81/",
+            identifier: "2019-11-18-SparkOnYarn 任务退出码/",
+            title: "Spark On Yarn 任务退出码"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>
