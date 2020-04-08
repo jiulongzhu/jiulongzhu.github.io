@@ -186,6 +186,92 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-11-29-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(2):%E4%BB%8E%20UnresolvedLogicPlan%20%E5%88%B0%20ResolvedLogicPlan/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2019-11-29-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(2):%E4%BB%8E%20UnresolvedLogicPlan%20%E5%88%B0%20ResolvedLogicPlan/" class="post-title-link" itemprop="url">SparkSQL源码解析(2):从 UnsolvedLogicPlan 到 ResolvedLogicPlan</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-11-29 00:00:00" itemprop="dateCreated datePublished" datetime="2019-11-29T00:00:00+08:00">2019-11-29</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-11-29-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(2):%E4%BB%8E%20UnresolvedLogicPlan%20%E5%88%B0%20ResolvedLogicPlan/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-11-29-SparkSQL 源码解析(2):从 UnresolvedLogicPlan 到 ResolvedLogicPlan/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>Parser 模块负责将原始 SQL 文本解析成 UnResolvedLogicPlan，Anayzer 模块负责将 UnResolvedLogicPlan(Relation|Attribute|Function) 通过 SessionCatalog 信息绑定到真正可操作的实体上(File|Column|MainClass)，即 SolvedLogicPlan，并校验其是否合法。   </p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2019-11-29-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(2):%E4%BB%8E%20UnresolvedLogicPlan%20%E5%88%B0%20ResolvedLogicPlan/#more" rel="contents">
+                Read more &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
     <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-11-28-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(1):%E4%BB%8E%20SQL%20%E5%88%B0%20UnResolvedLogicPlan/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1051,7 +1137,7 @@ Used Capacity、Absolute Used Capacity、Used Resource、Num Containers指标非
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">19</span>
+          <span class="site-state-item-count">20</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
