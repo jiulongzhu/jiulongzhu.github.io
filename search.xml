@@ -19,7 +19,7 @@
 <h3 id="分析-Dump"><a href="#分析-Dump" class="headerlink" title="分析 Dump"></a>分析 Dump</h3><pre><code>cd mat  
 sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:overview org.eclipse.mat.api:top_components</code></pre><p>会产生 3 个 zip 文件: PID_Leak_Suspects.zip,PID_System_Overview.zip,PID_Top_Components.zip，即(疑似)内存泄露分析、系统内存使用概览、GC-ROOT 信息。 </p>
 <h3 id="查看结果"><a href="#查看结果" class="headerlink" title="查看结果"></a>查看结果</h3><p>将三个 zip 文件传输到本地，解压后在浏览器打开 index.html 即可。  </p>
-<h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><p><a href="https://www.cnblogs.com/trust-freedom/p/6744948.html" target="_blank" rel="noopener">https://www.cnblogs.com/trust-freedom/p/6744948.html</a> </p>
+<h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><p><a href="https://www.cnblogs.com/trust-freedom/p/6744948.html" target="_blank" rel="noopener">https://www.cnblogs.com/trust-freedom/p/6744948.html</a><br><a href="http://moheqionglin.com/site/blogs/24/detail.html" target="_blank" rel="noopener">http://moheqionglin.com/site/blogs/24/detail.html</a>  </p>
 ]]></content>
       <tags>
         <tag>tools</tag>
