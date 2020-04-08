@@ -14,8 +14,11 @@
 <blockquote>
 <blockquote>
 </blockquote>
-<p>如果需要 Dump Docker 下的进程，需要进入到 Docker 内找到PID，dump 到 Docker 内然后复制 Dump 文件到宿主机   </p>
 </blockquote>
+<ol>
+<li>如果需要 Dump Docker 下的进程，需要进入到 Docker 内找到PID，dump 到 Docker 内然后复制 Dump 文件到宿主机 </li>
+<li>如果遇到了 Error attaching to core file 错误,可使用 su -m USER -c “jmap -dump:format=b,file=PID.dump PID” 命令来解决    </li>
+</ol>
 <h3 id="分析-Dump"><a href="#分析-Dump" class="headerlink" title="分析 Dump"></a>分析 Dump</h3><pre><code>cd mat  
 sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:overview org.eclipse.mat.api:top_components</code></pre><p>会产生 3 个 zip 文件: PID_Leak_Suspects.zip,PID_System_Overview.zip,PID_Top_Components.zip，即(疑似)内存泄露分析、系统内存使用概览、GC-ROOT 信息。 </p>
 <h3 id="查看结果"><a href="#查看结果" class="headerlink" title="查看结果"></a>查看结果</h3><p>将三个 zip 文件传输到本地，解压后在浏览器打开 index.html 即可。  </p>
