@@ -1739,7 +1739,7 @@ d. 规整队列待抢占量
 <tbody><tr>
 <td align="left">137</td>
 <td align="left">FORCE_KILLED</td>
-<td align="left">128+9,即是由 kill -9 命令强制终止,一般是虚拟或物理内存超限导致</td>
+<td align="left">128+9,即是由 kill -9 命令强制终止,一般是虚拟或物理内存超限导致、也有可能是操作系统整体内存紧张杀死进程</td>
 </tr>
 <tr>
 <td align="left">143</td>

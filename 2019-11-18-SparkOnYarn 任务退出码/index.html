@@ -53,7 +53,7 @@
 <meta property="og:site_name" content="List&#39;s Blog">
 <meta property="og:description" content="概述SparkOnYarn 程序的退出码种类比较繁多逻辑杂乱，主要包括：     Yarn 退出码       Spark 退出码     JVM 退出码     其中一些退出码可能是多个环节共同作用最终展现到日志上，e.g. SparkOnYarn 程序封装 driver&#x2F;executor 的 ContainerLauchContext 时启动命令时加入”-XX:OnOutOfMemoryErr">
 <meta property="article:published_time" content="2019-11-17T16:00:00.000Z">
-<meta property="article:modified_time" content="2020-03-16T10:01:28.109Z">
+<meta property="article:modified_time" content="2020-04-09T02:35:56.625Z">
 <meta property="article:author" content="List">
 <meta property="article:tag" content="Spark 2.3.0">
 <meta property="article:tag" content="Yarn 2.7.3">
@@ -221,7 +221,7 @@
                   <i class="fa fa-calendar-check-o"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2020-03-16 18:01:28" itemprop="dateModified" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
+                <time title="Modified: 2020-04-09 10:35:56" itemprop="dateModified" datetime="2020-04-09T10:35:56+08:00">2020-04-09</time>
               </span>
 
           
@@ -610,7 +610,7 @@
 <tbody><tr>
 <td align="left">137</td>
 <td align="left">FORCE_KILLED</td>
-<td align="left">128+9,即是由 kill -9 命令强制终止,一般是虚拟或物理内存超限导致</td>
+<td align="left">128+9,即是由 kill -9 命令强制终止,一般是虚拟或物理内存超限导致、也有可能是操作系统整体内存紧张杀死进程</td>
 </tr>
 <tr>
 <td align="left">143</td>
