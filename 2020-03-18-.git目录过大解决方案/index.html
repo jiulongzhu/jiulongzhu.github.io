@@ -53,7 +53,7 @@
 <meta property="og:site_name" content="List&#39;s Blog">
 <meta property="og:description" content=".git 目录会记录所有文件的历史操作，当提交次数很多 特别是包含大文件时，很容易导致.git 目录很大，尤其是.git&#x2F;objects&#x2F;pack。造成的影响有流量超限、自动化部署慢等。">
 <meta property="article:published_time" content="2020-03-17T16:00:00.000Z">
-<meta property="article:modified_time" content="2020-05-06T10:18:05.435Z">
+<meta property="article:modified_time" content="2020-05-06T10:45:06.672Z">
 <meta property="article:author" content="List">
 <meta property="article:tag" content="tools">
 <meta name="twitter:card" content="summary">
@@ -214,13 +214,6 @@
 
               <time title="Created: 2020-03-18 00:00:00" itemprop="dateCreated datePublished" datetime="2020-03-18T00:00:00+08:00">2020-03-18</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2020-05-06 18:18:05" itemprop="dateModified" datetime="2020-05-06T18:18:05+08:00">2020-05-06</time>
-              </span>
 
           
   
@@ -262,11 +255,13 @@
 <h3 id="rebase"><a href="#rebase" class="headerlink" title="rebase"></a>rebase</h3><p>有选择性合并历史提交，人工成本较高。    </p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">$ git logs </span><br><span class="line">$ git rebase -i $commitId </span><br><span class="line">pick 93a7f37 upd</span><br><span class="line">pick c70583b upd</span><br><span class="line">pick 11cb78f upd</span><br><span class="line">pick f11f716 upd</span><br><span class="line">pick d1ee55c upd</span><br><span class="line"></span><br><span class="line">将待合并的 commit id 前的 pick 字符串改成 s</span><br><span class="line">pick 93a7f37 upd</span><br><span class="line">pick c70583b upd</span><br><span class="line">pick 11cb78f upd</span><br><span class="line">s f11f716 upd</span><br><span class="line">pick d1ee55c upd</span><br><span class="line"></span><br><span class="line">这样第四个commit 会合并到第三个提交上。  </span><br><span class="line">$ git push --force </span><br><span class="line">$ git gc -prune&#x3D;now		清理本地版本库</span><br></pre></td></tr></table></figure>
 
-<h3 id="删除特定大文件的历史记录"><a href="#删除特定大文件的历史记录" class="headerlink" title="删除特定大文件的历史记录"></a>删除特定大文件的历史记录</h3><h5 id="查询-git-目录中最大的-10-个文件"><a href="#查询-git-目录中最大的-10-个文件" class="headerlink" title="查询 .git 目录中最大的 10 个文件"></a>查询 .git 目录中最大的 10 个文件</h5><p>git rev-list –objects –all | grep -f &lt;(git verify-pack -v .git/objects/pack/*.idx| sort -k 3 -n | cut -f 1 -d “ “ | tail -10) </p>
+<h3 id="删除特定大文件的历史记录"><a href="#删除特定大文件的历史记录" class="headerlink" title="删除特定大文件的历史记录"></a>删除特定大文件的历史记录</h3><h5 id="查询-git-目录中最大的-10-个文件"><a href="#查询-git-目录中最大的-10-个文件" class="headerlink" title="查询 .git 目录中最大的 10 个文件"></a>查询 .git 目录中最大的 10 个文件</h5><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">git rev-list --objects --all | grep -f &lt;(git verify-pack -v .git&#x2F;objects&#x2F;pack&#x2F;*.idx| sort -k 3 -n | cut -f 1 -d &quot; &quot; | tail -10)</span><br></pre></td></tr></table></figure>
+
 <p>输出范例如下:  </p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">...</span><br><span class="line">0afba5819d9df014734e70de6a3f237f4f56e33f spark-3.0.0-SNAPSHOT-bin-custom-spark.tgz</span><br><span class="line">996132b957dc1604cb97cc0c6caaf4f17dfea90f jlz&#x2F;spark-tpc-ds-performance-test-master&#x2F;src&#x2F;data&#x2F;catalog\_sales&#x2F;catalog\_sales\_part1.dat </span><br><span class="line">5af74da26b3dac5ed53f0e7f31b4b95b31730315 jlz&#x2F;spark-tpc-ds-performance-test-master&#x2F;src&#x2F;data&#x2F;catalog\_sales&#x2F;catalog\_sales\_part2.dat</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
 
-<h5 id="在版本库中删除特定文件"><a href="#在版本库中删除特定文件" class="headerlink" title="在版本库中删除特定文件"></a>在版本库中删除特定文件</h5><p>git filter-branch –index-filter ‘git rm –cached –ignore-unmatch spark-3.0.0-SNAPSHOT-bin-custom-spark.tgz catalog_sales_part*.dat’ – –all<br>rm -rf .git/refs/original<br>rm -rf .git/logs/<br>git gc –aggressive –prune=now   </p>
+<h5 id="在版本库中删除特定文件"><a href="#在版本库中删除特定文件" class="headerlink" title="在版本库中删除特定文件"></a>在版本库中删除特定文件</h5><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">git filter-branch --index-filter &#39;git rm --cached --ignore-unmatch spark-3.0.0-SNAPSHOT-bin-custom-spark.tgz catalog\_sales\_part*.dat&#39; -- --all  </span><br><span class="line">rm -rf .git&#x2F;refs&#x2F;original   </span><br><span class="line">rm -rf .git&#x2F;logs&#x2F;  </span><br><span class="line">git gc --aggressive --prune&#x3D;now</span><br></pre></td></tr></table></figure>
+
 <h5 id="提交到远程仓库"><a href="#提交到远程仓库" class="headerlink" title="提交到远程仓库"></a>提交到远程仓库</h5><p>git push –force  </p>
 
     </div>
