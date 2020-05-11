@@ -1,6 +1,753 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>混合云自动部署架构方案</title>
+    <url>/2020-05-10-%E6%B7%B7%E5%90%88%E4%BA%91%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84%E6%96%B9%E6%A1%88/</url>
+    <content><![CDATA[<a id="more"></a>
+
+<h1 id="混合云自动部署架构"><a href="#混合云自动部署架构" class="headerlink" title="混合云自动部署架构"></a>混合云自动部署架构</h1><h2 id="逻辑架构"><a href="#逻辑架构" class="headerlink" title="逻辑架构"></a>逻辑架构</h2><p>定义逻辑元素组成及其关系  </p>
+<p><img src="/img/kubernetes/architecture.png" alt=""></p>
+<p>以 “数据库和镜像版本库” 为界划分为两块内容：<br>右侧是应用的自动容器化过程。Jenkins 监控到用户提交到 GitLab 的代码变动后，获取代码打包构建应用最新版本的 Docker 镜像，发布到镜像版本库及同步数据库信息、并通知 commitor 发布应用新版本信息。<br>左侧是公有云遥控私有云对容器化应用的部署、伸缩、配置。依据各私有云对服务及其版本、配置的要求，后台组织私有云 kebernetes 配置文件，通过 OpenAPI 和私有云内部的 kebernetes ClusterManager(master 角色) 交互，在私有云内节点池上分配各类服务和应用，在相应节点上创建可 自动获取应用镜像、保证应用高可用的 Pod。      </p>
+<p>注: Pod 是 Kubernetes 调度的基本单位，Pod 内可以有多个应用，Pod 内的应用共享资源配额、网络地址等信息，逻辑上可以认为 Pod 是一个包含指定若干个应用的虚拟机。但Kubernetes并不直接创建 Pod，而是基于应用创建包含应用的 Pod。  </p>
+<h2 id="物理架构"><a href="#物理架构" class="headerlink" title="物理架构"></a>物理架构</h2><h3 id="物理架构-1"><a href="#物理架构-1" class="headerlink" title="物理架构"></a>物理架构</h3><p>略 </p>
+<h3 id="前置环境"><a href="#前置环境" class="headerlink" title="前置环境"></a>前置环境</h3><ul>
+<li>主机名配置</li>
+<li>root 免密</li>
+<li>jdk1.8、python3.7 </li>
+<li>git     </li>
+<li>docker</li>
+<li>Kubernetes集群环境</li>
+</ul>
+<h2 id="Web-Server-模块划分"><a href="#Web-Server-模块划分" class="headerlink" title="Web Server 模块划分"></a>Web Server 模块划分</h2><p>  <img src="/img/kubernetes/webserver.png" alt=""></p>
+<p>主要分为 8 个模块，集群管理、服务管理、镜像版本库管理、权限管理 处理全局层面的元数据信息；组件管理、配置管理、节点管理和自动化运维操作指定私有云。</p>
+<ol>
+<li>集群管理：私有云注册、注销和查询跳转私有云管理   </li>
+<li>服务管理：大数据服务及插件式服务 注册、注销、更新信息(角色列表、镜像外参数列表)。注册时需定义 服务类型(e.g. hadoop,hulk)、支持角色及其性质(e.g. master,worker,client)、默认外挂配置文件全路径(私有云内)、默认运行时参数(环境变量,e.g. 集群名称)，各角色默认开启端口、默认端口映射、默认目录权限。 </li>
+<li>镜像版本库管理：镜像注册、注销、信息更新。镜像注册必须有服务类型，分为两个渠道：Jenkins 自动发布、人工维护(以兼容现有dockerhub)。  </li>
+<li>组件管理： 组件即全局层面提供的可安装服务。新增组件、升级回滚、组件启停、组件删除、信息同步。组件可以新增多个 即一键部署。新增组件时需 服务类型(e.g. hadoop,hulk)、 服务对应镜像版本、按角色性质(Master,Worker,Client) 依次选择部署节点，并可对每个节点上的角色细粒度差异化定制 e.g. 已有角色让出资源、外挂配置文件路径、设置 Docker 资源限制、JVM 参数等运行时参数。兼容节点差异化，定制时角色label selector标签必须选择主机名(e.g. kubernetes.io/hostname=10.10.2.131)，确保差异化定制后的角色在相应服务器上运行。升级回滚时选择对应服务，复用新增组件流程，设置镜像版本、运行时参数等信息即可。组件启停，停止和启动组件的所有角色实例。组件安装部署等操作均为异步操作，需要手动同步集群信息。  </li>
+<li>节点管理：信息维护、节点角色管理(扩容缩容)、信息同步。 私有云服务器节点 IP、主机名、资源上限(内存、CPU、存储)及可分配资源信息(内存、CPU、存储)。用于组件改动时配置参数合法性校验；节点角色管理，节点新增角色(扩容)和删除角色(缩容)时 可修改节点已有角色配置(抢占/还回资源) 并兼容节点差异化、及节点上角色启停。节点角色管理等操作均为异步操作，需要手动同步集群信息。     </li>
+<li>配置管理： 配置管理分为三类, 一是外挂配置文件管理，为避免冲突公有云不维护各私有云配置文件信息、不设修改界面，直接在私有云物理服务器修改 热更新应用。此处不讨论该场景；二是组件运行时配置管理，界面位于”组件管理”、组件环境变量、运行时环境(Docker,JVM) 改动；三是角色的配置管理，界面位于”节点管理”-&gt;”角色”，角色环境变量、运行时环境改动，兼容节点差异化。改动写入公有云数据库，待触发重启组件/角色之后将组件、角色的所有配置同步到私有云( Kubernetes 有滚动重启功能)。  </li>
+<li>自动化运维：巡检报告等周期性任务。   </li>
+<li>权限管理    </li>
+</ol>
+<h2 id="Web-Server-功能划分"><a href="#Web-Server-功能划分" class="headerlink" title="Web Server 功能划分"></a>Web Server 功能划分</h2><h3 id="集群管理"><a href="#集群管理" class="headerlink" title="集群管理"></a>集群管理</h3><h4 id="私有云注册"><a href="#私有云注册" class="headerlink" title="私有云注册"></a>私有云注册</h4><p>步骤 1： 公有云调用私有云OpenAPI rest 接口，私有云 使用 Kubernetes 客户端获取集群(Node)信息: 节点IP、主机名、标签、集群资源上限、集群可分配资源；</p>
+<blockquote>
+</blockquote>
+<p>注: 不兼容私有云上已部署的组件。<br>　　a.    私有云已部署服务可能不在 服务列表<br>　　b.    私有云已部署服务可能不符合 系统规范(服务配置: 端口、权限、环境变量；节点差异化带来的命名规范、标签、应用定义信息)    </p>
+<h4 id="私有云信息更新"><a href="#私有云信息更新" class="headerlink" title="私有云信息更新"></a>私有云信息更新</h4><p>集群扩容后节点变化信息的同步。<br>步骤 1：公有云调用私有云OpenAPI rest 接口，私有云 使用 Kubernetes 客户端获取集群(Node)信息: 节点IP、主机名、标签、集群资源上限、集群可分配资源；<br>步骤 2：同步表信息   </p>
+<h4 id="私有云注销"><a href="#私有云注销" class="headerlink" title="私有云注销"></a>私有云注销</h4><p>事务<br>步骤 1： 删除数据库内私有云 多表 相关数据信息<br>事务结束    </p>
+<h3 id="服务管理"><a href="#服务管理" class="headerlink" title="服务管理"></a>服务管理</h3><h4 id="服务注册"><a href="#服务注册" class="headerlink" title="服务注册"></a>服务注册</h4><p>步骤 1：服务定义<br>　　a.服务类型(e.g. hadoop,hulk)<br>　　b.支持的角色信息及其性质(master,worker,client)<br>　　　　各角色默认外挂配置文件全路径(配置文件在私有云物理机)<br>　　　　各角色默认运行时参数(e.g. 环境变量,集群名称,XMX)<br>　　　　各角色默认开启端口(e.g. NameNode 9000,50070,50030)<br>　　　　各角色默认端口映射(e.g. 集群内50070,集群外 150070最终映射到 50070 端口)<br>　　　　各角色默认目录权限(e.g. NameNode 的快照目录; DN 的数据目录)      </p>
+<blockquote>
+</blockquote>
+<p>注:<br>　　a.    Master 性质的角色必须要有Service。Worker/Client 角色不需要 Service。<br>　　b.    Web 性质的角色合并到 Master，必须有Service。  </p>
+<h4 id="服务信息更新"><a href="#服务信息更新" class="headerlink" title="服务信息更新"></a>服务信息更新</h4><p>支持角色信息修改。服务信息更新之后，已安装该服务的私有云按需要一一做相应改动。     </p>
+<h4 id="服务注销"><a href="#服务注销" class="headerlink" title="服务注销"></a>服务注销</h4><p> 服务注销之后，未安装该服务的私有云无法安装该服务，但已安装该组件的私有云可以按需要一一停止。  </p>
+<h3 id="镜像版本库管理"><a href="#镜像版本库管理" class="headerlink" title="镜像版本库管理"></a>镜像版本库管理</h3><h4 id="镜像注册"><a href="#镜像注册" class="headerlink" title="镜像注册"></a>镜像注册</h4><p>步骤 1： 镜像定义<br>　　　　服务类型(e.g. hadoop,hulk)<br>　　　　服务版本(e.g. 2.7.3)<br>　　　　镜像地址(e.g. dockerhub.m.com/docker/???)<br>　　　　镜像描述(e.g. 升级功能描述)  </p>
+<h4 id="镜像注销"><a href="#镜像注销" class="headerlink" title="镜像注销"></a>镜像注销</h4><p>删除过旧或开发版本的镜像  </p>
+<h4 id="信息更新"><a href="#信息更新" class="headerlink" title="信息更新"></a>信息更新</h4><h3 id="组件管理"><a href="#组件管理" class="headerlink" title="组件管理"></a>组件管理</h3><h4 id="新增组件"><a href="#新增组件" class="headerlink" title="新增组件"></a>新增组件</h4><p>步骤 1. 首先从未安装的服务列表选择需要安装的组件，及其镜像版本(版本、描述)。<br>步骤 2. 筛选出将安装组件中具有 master 性质的角色，选择各角色安装节点(可多选,HA)。<br>步骤 3. 筛选出将安装组件中具有 worker/client 性质的角色，依次选择各角色安装节点(可多选)。<br>步骤 4.  列出新组件涉及所有节点及其上 已安装角色和将安装角色，可修改已有角色配置和配置节点上的新角色配置。(新增组件很可能从旧组件抢占资源；可定制节点上新旧角色配置以满足差异化节点)。<br>配置:  master 角色对外服务、网络端口、Docker资源限制、JVM、环境变量、权限等。<br>步骤 5. Review。 将后台封装的 kubernetes Deployment,Service yaml信息 dump 打印到前台。<br>步骤 6. 调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master,安装部署，返回值。<br>步骤 7. 同步表数据或异常  </p>
+<p>样例:<br><a href="https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeCreateDeploymenet12.java" target="_blank" rel="noopener">https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeCreateDeploymenet12.java</a>  　　</p>
+<blockquote>
+</blockquote>
+<p>注:<br>　　1.    封装yaml Deployment对象时，需要指定 Deployment nodeSelector 标签, “kubernetes.io/hostname= 10.10.2.131” 以保证 Deployment 部署到该 IP 上(差异化节点定制)。<br>　　2.    封装yaml Deployment 对象时，需要指定该 Deployment 的 label 以便于后续管理,
+e.g. hostname=10.10.2.131,service=hadoop-hdfs,type=platform 等。 Kubernetes 可以依据标签执行查询，e.g. 查询标签为service=hadoop-hdfs的所有 Deployment，设置其镜像以达到版本升级的目的。<br>　　3.  默认。Master 性质角色默认安装节点 hadoop1,hadoop2;worker/client 默认除了 hadoop1,hadoop2 之外的节点。 默认配置取服务管理的默认配置。</p>
+<h4 id="升级回滚"><a href="#升级回滚" class="headerlink" title="升级回滚"></a>升级回滚</h4><p>步骤 1：设置特定组件(标签 service=?)的镜像版本、配置等信息。<br>步骤 2：Review Yaml<br>步骤 3：调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master,安装部署，返回值。<br>步骤4：同步表数据或异常  </p>
+<p>样例：<br><a href="https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeModifyDeployment13.java" target="_blank" rel="noopener">https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeModifyDeployment13.java</a></p>
+<h4 id="组件启停"><a href="#组件启停" class="headerlink" title="组件启停"></a>组件启停</h4><p>步骤 1：查询特定组件(标签 service=?)的Deployment,设置各角色副本数信息(1 为启动,0为停止)。<br>步骤 2：Review Yaml<br>步骤 3：调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master,调整副本数，返回值。<br>步骤 4：同步表数据或异常  </p>
+<p>样例：
+<a href="https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeModifyDeployment13.java" target="_blank" rel="noopener">https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeModifyDeployment13.java</a>  </p>
+<h4 id="组件删除"><a href="#组件删除" class="headerlink" title="组件删除"></a>组件删除</h4><p>步骤 1：查询特定组件(标签 service=?)的Deployment，组织 kubernetes 删除 Deployment yaml。<br>步骤 2：Review Yaml<br>步骤 3：调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master,删除组件，返回值。<br>步骤 4：同步表数据或异常  </p>
+<p>样例：<br><a href="https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeListDeployment14.java" target="_blank" rel="noopener">https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeListDeployment14.java</a>  </p>
+<h4 id="信息同步"><a href="#信息同步" class="headerlink" title="信息同步"></a>信息同步</h4><p>组件的安装、停止、升级回滚操作都是遥控私有云Kubernetes 异步部署，操作结果如何、应用是否启动均未知，因此需要手动触发信息同步来查看操作结果。  </p>
+<p>步骤 1：调用 OpenAPI 查询已安装组件的Deployment 信息，解析 Deployment 副本数和运行状态<br>步骤 2：同步表数据或异常。  </p>
+<p>样例：<br><a href="https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeListDeployment14.java" target="_blank" rel="noopener">https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeListDeployment14.java</a>  </p>
+<h3 id="节点管理"><a href="#节点管理" class="headerlink" title="节点管理"></a>节点管理</h3><h4 id="基本信息"><a href="#基本信息" class="headerlink" title="基本信息"></a>基本信息</h4><p>只读信息；<br>信息来自于”私有云注册”时从 OpenAPI 获取的集群节点、资源信息等。  </p>
+<h4 id="角色管理"><a href="#角色管理" class="headerlink" title="角色管理"></a>角色管理</h4><p>节点上的角色列表  </p>
+<h5 id="扩容"><a href="#扩容" class="headerlink" title="扩容"></a>扩容</h5><p>步骤 1：选择服务，默认当前私有云 已安装组件 镜像、组件版本。选择角色<br>步骤 2：配置 资源限制、运行参数、开放端口、目录权限等<br>步骤 3：Review kubernetes yaml 配置信息<br>步骤 4：调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master，安装部署，返回值<br>步骤 5：同步 Deployment表数据或异常  </p>
+<h5 id="缩容"><a href="#缩容" class="headerlink" title="缩容"></a>缩容</h5><p>步骤 1：选择 删除某节点上的角色。删除该节点上指定角色的 Deployment。<br>步骤 2：Review kubernetes yaml 配置信息<br>步骤 3：调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master，部署，返回值<br>步骤 4：同步 Deployment 表数据或异常  </p>
+<h5 id="启动、停止"><a href="#启动、停止" class="headerlink" title="启动、停止"></a>启动、停止</h5><p>控制节点上角色的 replica 因子即可。  </p>
+<p>步骤 1：依据节点和服务标签或者 Deployment 名字设置其 replica 因子<br>步骤 2：通过 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master，部署，返回值<br>步骤 3：同步 Deployment 表数据或异常 </p>
+<h4 id="信息同步-1"><a href="#信息同步-1" class="headerlink" title="信息同步"></a>信息同步</h4><p>扩容缩容和启动停止 都是在指定节点上异步操作指定角色的 Deployment。因此可以依据节点 hostname 标签和 service 标签查询具体的 Deployment，同步其状态。  </p>
+<h3 id="配置管理"><a href="#配置管理" class="headerlink" title="配置管理"></a>配置管理</h3><h4 id="外挂配置文件"><a href="#外挂配置文件" class="headerlink" title="外挂配置文件"></a>外挂配置文件</h4><p>配置文件外挂，为保证配置信息同步，因此系统不提供任何管理接口和界面。可通过去物理服务器修改配置文件后，触发 kubernetes 的热更新，重启 Deployment。  </p>
+<h4 id="组件配置管理"><a href="#组件配置管理" class="headerlink" title="组件配置管理"></a>组件配置管理</h4><p>界面位于”组件管理”-&gt;”配置管理”。<br>步骤 1：设置 环境变量、开放端口、端口映射、目录权限等信息<br>步骤 2：调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master，实施，返回值。Kubernetes 默认滚动重启<br>步骤 3：同步表数据或异常          </p>
+<h4 id="节点角色配置管理"><a href="#节点角色配置管理" class="headerlink" title="节点角色配置管理"></a>节点角色配置管理</h4><p>界面位于”节点管理”-&gt;“角色”-&gt;”配置管理”。<br>步骤 1：设置 环境变量、开放端口、端口映射、目录权限等信息<br>步骤 2：调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master，实施，返回值。Kubernetes 默认滚动重启<br>步骤 3：同步表数据或异常      </p>
+<h3 id="自动化运维"><a href="#自动化运维" class="headerlink" title="自动化运维"></a>自动化运维</h3><h4 id="周期性任务"><a href="#周期性任务" class="headerlink" title="周期性任务"></a>周期性任务</h4><p>Kubernetes 中周期性任务(CronJob) 是以 Deployment 的方式运行的，定义方式和 Linux 中 Crontab 完全一致,需要一个基于时间表达式的调度器和执行内容。  </p>
+<p>定时任务定义:<br>步骤 1: 选择镜像、定义定时任务名称、标签、环境变量、资源限制、时间表达式、执行内容、选择节点(默认不选)等信息。 
+步骤 2：调用 OpenAPI 接口令私有云 kubernetes client将 yaml 信息传递给kubernetes master，实施，返回值<br>步骤 3：同步表信息或异常。  </p>
+<p>样例：<br><a href="https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeCreateCronJob07.java" target="_blank" rel="noopener">https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeCreateCronJob07.java</a>  </p>
+<h4 id="信息同步-2"><a href="#信息同步-2" class="headerlink" title="信息同步"></a>信息同步</h4><p>步骤 1：调用 OpenAPI 接口令私有云查询 namespace 中所有 CronJob,将 名称、最后执行时间等信息相应接口调用<br>步骤 2：同步表信息或异常。  </p>
+<p>样例：<br><a href="https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeCreateCronJob07.java" target="_blank" rel="noopener">https://git.intra.yiducloud.cn/jiulong.zhu/kubernetes-java-client/blob/master/src/main/java/iokube/KubeCreateCronJob07.java</a>  </p>
+<h3 id="权限管理"><a href="#权限管理" class="headerlink" title="权限管理"></a>权限管理</h3><p>登录权限<br>操作权限<br>可直接使用已有系统的权限控制逻辑。  </p>
+<h2 id="数据库设计"><a href="#数据库设计" class="headerlink" title="数据库设计"></a>数据库设计</h2><h3 id="私有云集群信息表-tbl-cluster"><a href="#私有云集群信息表-tbl-cluster" class="headerlink" title="私有云集群信息表(tbl_cluster)"></a>私有云集群信息表(tbl_cluster)</h3><table>
+<thead>
+<tr>
+<th align="left">序号</th>
+<th align="left">字段名</th>
+<th align="left">字段含义</th>
+<th align="left">数据类型</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">id</td>
+<td align="left">自增 id</td>
+<td align="left">bigint</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">name</td>
+<td align="left">私有云名称</td>
+<td align="left">varchar</td>
+<td align="left">索引</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">shortname</td>
+<td align="left">简称</td>
+<td align="left">varchar</td>
+<td align="left">索引</td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">domain</td>
+<td align="left">域名</td>
+<td align="left">varchar</td>
+<td align="left">索引</td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">ip</td>
+<td align="left">ip</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">hostname</td>
+<td align="left">主机名</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">7</td>
+<td align="left">limit_cpu</td>
+<td align="left">cpu 上限</td>
+<td align="left">float</td>
+<td align="left">单位: 个数</td>
+</tr>
+<tr>
+<td align="left">8</td>
+<td align="left">limit_mem</td>
+<td align="left">内存上限</td>
+<td align="left">float</td>
+<td align="left">单位: GB</td>
+</tr>
+<tr>
+<td align="left">9</td>
+<td align="left">limit_storage</td>
+<td align="left">存储上限</td>
+<td align="left">float</td>
+<td align="left">单位: GB</td>
+</tr>
+<tr>
+<td align="left">10</td>
+<td align="left">allocatable_cpu</td>
+<td align="left">可分配 cpu</td>
+<td align="left">float</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">11</td>
+<td align="left">allocatable_mem</td>
+<td align="left">可分配内存</td>
+<td align="left">float</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">12</td>
+<td align="left">allocatable_storage</td>
+<td align="left">可分配存储</td>
+<td align="left">float</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">13</td>
+<td align="left">limit_pod</td>
+<td align="left">可分配pods上限</td>
+<td align="left">int</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">14</td>
+<td align="left">label</td>
+<td align="left">节点标签</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">15</td>
+<td align="left">create_time</td>
+<td align="left">创建时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+<tr>
+<td align="left">16</td>
+<td align="left">modify_time</td>
+<td align="left">修改时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+</tbody></table>
+<h3 id="服务角色信息表-tbl-service"><a href="#服务角色信息表-tbl-service" class="headerlink" title="服务角色信息表(tbl_service)"></a>服务角色信息表(tbl_service)</h3><table>
+<thead>
+<tr>
+<th align="left">序号</th>
+<th align="left">字段名</th>
+<th align="left">字段含义</th>
+<th align="left">数据类型</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">id</td>
+<td align="left">自增 id</td>
+<td align="left">bigint</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">service</td>
+<td align="left">服务类型</td>
+<td align="left">varchar</td>
+<td align="left">索引</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">role</td>
+<td align="left">角色</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">type</td>
+<td align="left">角色性质</td>
+<td align="left">varchar</td>
+<td align="left">索引; master,worker,client</td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">config_file</td>
+<td align="left">角色默认外挂配置文件路径</td>
+<td align="left">varchar</td>
+<td align="left">json string</td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">config</td>
+<td align="left">角色默认运行时环境变量</td>
+<td align="left">varchar</td>
+<td align="left">json string</td>
+</tr>
+<tr>
+<td align="left">7</td>
+<td align="left">port</td>
+<td align="left">角色默认开启端口</td>
+<td align="left">varchar</td>
+<td align="left">json string</td>
+</tr>
+<tr>
+<td align="left">8</td>
+<td align="left">port_mapping</td>
+<td align="left">角色默认端口映射</td>
+<td align="left">varchar</td>
+<td align="left">json string.集群内/外访问端口最终映射到开启端口</td>
+</tr>
+<tr>
+<td align="left">9</td>
+<td align="left">volumn_auth</td>
+<td align="left">角色目录权限</td>
+<td align="left">varchar</td>
+<td align="left">json string</td>
+</tr>
+<tr>
+<td align="left">10</td>
+<td align="left">create_time</td>
+<td align="left">创建时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+<tr>
+<td align="left">11</td>
+<td align="left">modify_time</td>
+<td align="left">修改时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+</tbody></table>
+<h3 id="镜像版本信息-tbl-service-image"><a href="#镜像版本信息-tbl-service-image" class="headerlink" title="镜像版本信息(tbl_service_image)"></a>镜像版本信息(tbl_service_image)</h3><table>
+<thead>
+<tr>
+<th align="left">序号</th>
+<th align="left">字段名</th>
+<th align="left">字段含义</th>
+<th align="left">数据类型</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">id</td>
+<td align="left">自增 id</td>
+<td align="left">bigint</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">service</td>
+<td align="left">服务类型</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">version</td>
+<td align="left">服务版本</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">image</td>
+<td align="left">镜像名称</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">description</td>
+<td align="left">版本描述</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">create_time</td>
+<td align="left">创建时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+<tr>
+<td align="left">7</td>
+<td align="left">modify_time</td>
+<td align="left">修改时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+</tbody></table>
+<h3 id="私有云组件信息-tbl-cluster-component"><a href="#私有云组件信息-tbl-cluster-component" class="headerlink" title="私有云组件信息(tbl_cluster_component)"></a>私有云组件信息(tbl_cluster_component)</h3><table>
+<thead>
+<tr>
+<th align="left">序号</th>
+<th align="left">字段名</th>
+<th align="left">字段含义</th>
+<th align="left">数据类型</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">id</td>
+<td align="left">自增 id</td>
+<td align="left">bigint</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">cluster</td>
+<td align="left">私有云</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">service</td>
+<td align="left">服务类型(组件)</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键。外键</td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">version</td>
+<td align="left">安装版本</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">image</td>
+<td align="left">镜像名称</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">image_pull_policy</td>
+<td align="left">镜像获取策略</td>
+<td align="left">varchar</td>
+<td align="left">IfNotPresent:本地无则远程</td>
+</tr>
+<tr>
+<td align="left">7</td>
+<td align="left">create_time</td>
+<td align="left">创建时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+<tr>
+<td align="left">8</td>
+<td align="left">modify_time</td>
+<td align="left">修改时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+</tbody></table>
+<h3 id="私有云部署信息-tbl-cluster-deployment"><a href="#私有云部署信息-tbl-cluster-deployment" class="headerlink" title="私有云部署信息(tbl_cluster_deployment)"></a>私有云部署信息(tbl_cluster_deployment)</h3><table>
+<thead>
+<tr>
+<th align="left">序号</th>
+<th align="left">字段名</th>
+<th align="left">字段含义</th>
+<th align="left">数据类型</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">id</td>
+<td align="left">自增 id</td>
+<td align="left">bigint</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">cluster</td>
+<td align="left">私有云</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">service</td>
+<td align="left">服务类型(组件)</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">version</td>
+<td align="left">安装版本</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">deploy_name</td>
+<td align="left">部署名称,同容器名称    varchar     索引。联合主键。外键。主机+服务</td>
+<td align="left"></td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">label</td>
+<td align="left">标签集合(平台、服务、节点)</td>
+<td align="left">varchar    索引。Json</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">7</td>
+<td align="left">avail_replica</td>
+<td align="left">可用副本数</td>
+<td align="left">int</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">8</td>
+<td align="left">unavail_replica</td>
+<td align="left">不可用副本数</td>
+<td align="left">int</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">9</td>
+<td align="left">state</td>
+<td align="left">状态</td>
+<td align="left">varchar</td>
+<td align="left">running,ended..</td>
+</tr>
+<tr>
+<td align="left">10</td>
+<td align="left">resource</td>
+<td align="left">资源限制</td>
+<td align="left">varchar</td>
+<td align="left">json. {request,limit}</td>
+</tr>
+<tr>
+<td align="left">11</td>
+<td align="left">env</td>
+<td align="left">环境变量</td>
+<td align="left">varchar</td>
+<td align="left">json</td>
+</tr>
+<tr>
+<td align="left">12</td>
+<td align="left">port</td>
+<td align="left">开放端口</td>
+<td align="left">varchar</td>
+<td align="left">json</td>
+</tr>
+<tr>
+<td align="left">13</td>
+<td align="left">volumn_auth</td>
+<td align="left">目录权限</td>
+<td align="left">varchar</td>
+<td align="left">json</td>
+</tr>
+<tr>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">14</td>
+<td align="left">others</td>
+<td align="left">备用字段</td>
+<td align="left">varchar(5000)</td>
+<td align="left">json。存活探针，启动命令、准备容器等。视具</td>
+</tr>
+<tr>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">15</td>
+<td align="left">create_time</td>
+<td align="left">创建时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+<tr>
+<td align="left">16</td>
+<td align="left">modify_time</td>
+<td align="left">修改时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+</tbody></table>
+<h3 id="私有云网络服务信息-tbl-cluster-network-service"><a href="#私有云网络服务信息-tbl-cluster-network-service" class="headerlink" title="私有云网络服务信息(tbl_cluster_network_service)"></a>私有云网络服务信息(tbl_cluster_network_service)</h3><table>
+<thead>
+<tr>
+<th align="left">序号</th>
+<th align="left">字段名</th>
+<th align="left">字段含义</th>
+<th align="left">数据类型</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">id</td>
+<td align="left">自增 id</td>
+<td align="left">bigint</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">cluster</td>
+<td align="left">私有云</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">service</td>
+<td align="left">服务类型(组件)</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">version</td>
+<td align="left">安装版本</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">image</td>
+<td align="left">镜像名称</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">network_service_name</td>
+<td align="left">对外服务名称</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">7</td>
+<td align="left">type</td>
+<td align="left">对外服务类型</td>
+<td align="left">varchar</td>
+<td align="left">NodePort</td>
+</tr>
+<tr>
+<td align="left">8</td>
+<td align="left">deploy_name</td>
+<td align="left">同部署名称</td>
+<td align="left">varchar</td>
+<td align="left">deploy name，非标签</td>
+</tr>
+<tr>
+<td align="left">9</td>
+<td align="left">port_mapping</td>
+<td align="left">端口映射</td>
+<td align="left">varchar</td>
+<td align="left">json</td>
+</tr>
+<tr>
+<td align="left">10</td>
+<td align="left">create_time</td>
+<td align="left">创建时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+<tr>
+<td align="left">11</td>
+<td align="left">modify_time</td>
+<td align="left">修改时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+</tbody></table>
+<h3 id="私有云定时任务信息-tbl-cronjob"><a href="#私有云定时任务信息-tbl-cronjob" class="headerlink" title="私有云定时任务信息(tbl_cronjob)"></a>私有云定时任务信息(tbl_cronjob)</h3><table>
+<thead>
+<tr>
+<th align="left">序号</th>
+<th align="left">字段名</th>
+<th align="left">字段含义</th>
+<th align="left">数据类型</th>
+<th align="left">备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">1</td>
+<td align="left">id</td>
+<td align="left">自增 id</td>
+<td align="left">bigint</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">cluster</td>
+<td align="left">私有云</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">jobname</td>
+<td align="left">job名称</td>
+<td align="left">varchar</td>
+<td align="left">索引。联合主键</td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">label</td>
+<td align="left">标签</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">image</td>
+<td align="left">镜像名称</td>
+<td align="left">varchar</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">env</td>
+<td align="left">环境变量</td>
+<td align="left">varchar</td>
+<td align="left">json</td>
+</tr>
+<tr>
+<td align="left">7</td>
+<td align="left">resource</td>
+<td align="left">资源限制</td>
+<td align="left">varchar</td>
+<td align="left">json.{request,limit}</td>
+</tr>
+<tr>
+<td align="left">8</td>
+<td align="left">scheduler</td>
+<td align="left">时间表达式</td>
+<td align="left">varchar</td>
+<td align="left">同 Linux crontab */1 * * * *</td>
+</tr>
+<tr>
+<td align="left">9</td>
+<td align="left">command</td>
+<td align="left">执行命令</td>
+<td align="left">varchar</td>
+<td align="left">执行命令。脚本</td>
+</tr>
+<tr>
+<td align="left">10</td>
+<td align="left">status</td>
+<td align="left">状态</td>
+<td align="left">varchar</td>
+<td align="left">Running</td>
+</tr>
+<tr>
+<td align="left">11</td>
+<td align="left">last_time</td>
+<td align="left">最后执行时间</td>
+<td align="left">datetime</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left">12</td>
+<td align="left">create_time</td>
+<td align="left">创建时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+<tr>
+<td align="left">13</td>
+<td align="left">modify_time</td>
+<td align="left">修改时间</td>
+<td align="left">datetime</td>
+<td align="left">默认 now()</td>
+</tr>
+</tbody></table>
+]]></content>
+      <tags>
+        <tag>architecture</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Linux 服务器分析 JVM Dump 文件</title>
     <url>/2020-04-08-Linux%20%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%88%86%E6%9E%90%20JVM%20Dump%20%E6%96%87%E4%BB%B6/</url>
     <content><![CDATA[<p>JVM Dump 文件传输到本地分析，通常需要等待较长时间，且本地环境配置不支持分析大内存 JVM 的 Dump 文件。因此合理的方式是使用 Eclipse 的 MAT(MemoryAnalyzeTool) 工具在服务器上分析 Dump 文件结束后将结果传输到本地查看。    </p>
@@ -341,8 +1088,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <p>注: 高压缩率 ORC 文件 4MB 解压后有 4G 左右的大小，可能需要降低下限    </p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -792,8 +1539,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 </tbody></table>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1174,8 +1921,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">def lookupFunction(</span><br><span class="line">      name: FunctionIdentifier,</span><br><span class="line">      children: Seq[Expression]): Expression &#x3D; synchronized &#123;</span><br><span class="line">    if (name.database.isEmpty &amp;&amp; functionRegistry.functionExists(name)) &#123;</span><br><span class="line">      &#x2F;&#x2F; This function has been already loaded into the function registry.</span><br><span class="line">      return functionRegistry.lookupFunction(name, children)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; If the name itself is not qualified, add the current database to it.</span><br><span class="line">    val database &#x3D; formatDatabaseName(name.database.getOrElse(getCurrentDatabase))</span><br><span class="line">    val qualifiedName &#x3D; name.copy(database &#x3D; Some(database))</span><br><span class="line"></span><br><span class="line">    if (functionRegistry.functionExists(qualifiedName)) &#123;</span><br><span class="line">      return functionRegistry.lookupFunction(qualifiedName, children)</span><br><span class="line">    &#125;</span><br><span class="line">    val catalogFunction &#x3D; try &#123;</span><br><span class="line">      externalCatalog.getFunction(database, name.funcName)</span><br><span class="line">    &#125; catch &#123;</span><br><span class="line">      case _: AnalysisException &#x3D;&gt; failFunctionLookup(name)</span><br><span class="line">      case _: NoSuchPermanentFunctionException &#x3D;&gt; failFunctionLookup(name)</span><br><span class="line">    &#125;</span><br><span class="line">    loadFunctionResources(catalogFunction.resources)</span><br><span class="line">    registerFunction(catalogFunction.copy(identifier &#x3D; qualifiedName), overrideIfExists &#x3D; false)</span><br><span class="line">    &#x2F;&#x2F; Now, we need to create the Expression.</span><br><span class="line">    functionRegistry.lookupFunction(qualifiedName, children)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1212,8 +1959,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <p>visitTable 方法的返回值是 UnresovedRelation<br>visitStar 方法的返回值是 UnresolvedStar<br>visitColumnReference 方法的返回值是 UnresolvedRegex 或 UnresolvedAttribute<br>visitFunctionCall 方法的返回值是 UnresolvedWindowExpression 或 WindowExpression<br>….</p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1770,8 +2517,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Spark On Yarn ExitCode</tag>
       </tags>
   </entry>
@@ -1821,8 +2568,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn User Headroom</tag>
       </tags>
   </entry>
@@ -2437,8 +3184,8 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html</a><br><a href="https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us" target="_blank" rel="noopener">https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us</a><br><a href="http://gitbook.net/java/util/java_util_treemap.html" target="_blank" rel="noopener">http://gitbook.net/java/util/java_util_treemap.html</a>  </p>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn ReservationSystem</tag>
       </tags>
   </entry>
@@ -2588,9 +3335,9 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html</a><br><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption</a><br><a href="https://www.aboutyun.com/thread-24628-1-1.html" target="_blank" rel="noopener">https://www.aboutyun.com/thread-24628-1-1.html</a></p>
 ]]></content>
       <tags>
+        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
         <tag>Yarn PreemptionSystem</tag>
-        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -2925,8 +3672,8 @@ LeafQueue 和ParentQueue  一样,使用抽象父类AbstractCSQueue#allocateResou
 
 <h2 id="线上测试用例"><a href="#线上测试用例" class="headerlink" title="线上测试用例"></a>线上测试用例</h2>]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn 优化</tag>
       </tags>
   </entry>
@@ -2984,8 +3731,8 @@ spark.shuffle.service.port 7337   额外的 shuffle service 服务所占用的�
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p> <a href="http://spark.apache.org/docs/2.3.1/configuration.html" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/configuration.html</a><br> <a href="http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service</a>  </p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
 </search>

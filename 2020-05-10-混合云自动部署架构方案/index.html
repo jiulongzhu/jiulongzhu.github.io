@@ -46,28 +46,34 @@
   };
 </script>
 
-  <meta name="description" content="Hello World!">
-<meta property="og:type" content="website">
-<meta property="og:title" content="List&#39;s Blog">
-<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;index.html">
+  <meta name="description" content="混合云自动部署架构逻辑架构定义逻辑元素组成及其关系    以 “数据库和镜像版本库” 为界划分为两块内容：右侧是应用的自动容器化过程。Jenkins 监控到用户提交到 GitLab 的代码变动后，获取代码打包构建应用最新版本的 Docker 镜像，发布到镜像版本库及同步数据库信息、并通知 commitor 发布应用新版本信息。左侧是公有云遥控私有云对容器化应用的部署、伸缩、配置。依据各私有云对">
+<meta property="og:type" content="article">
+<meta property="og:title" content="混合云自动部署架构方案">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2020-05-10-%E6%B7%B7%E5%90%88%E4%BA%91%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84%E6%96%B9%E6%A1%88&#x2F;index.html">
 <meta property="og:site_name" content="List&#39;s Blog">
-<meta property="og:description" content="Hello World!">
+<meta property="og:description" content="混合云自动部署架构逻辑架构定义逻辑元素组成及其关系    以 “数据库和镜像版本库” 为界划分为两块内容：右侧是应用的自动容器化过程。Jenkins 监控到用户提交到 GitLab 的代码变动后，获取代码打包构建应用最新版本的 Docker 镜像，发布到镜像版本库及同步数据库信息、并通知 commitor 发布应用新版本信息。左侧是公有云遥控私有云对容器化应用的部署、伸缩、配置。依据各私有云对">
+<meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;kubernetes&#x2F;architecture.png">
+<meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;kubernetes&#x2F;webserver.png">
+<meta property="article:published_time" content="2020-05-09T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-05-11T07:10:18.647Z">
 <meta property="article:author" content="List">
+<meta property="article:tag" content="architecture">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;kubernetes&#x2F;architecture.png">
 
-<link rel="canonical" href="https://jiulongzhu.github.io/">
+<link rel="canonical" href="https://jiulongzhu.github.io/2020-05-10-%E6%B7%B7%E5%90%88%E4%BA%91%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84%E6%96%B9%E6%A1%88/">
 
 
 <script id="page-configurations">
   // https://hexo.io/docs/variables.html
   CONFIG.page = {
     sidebar: "",
-    isHome: true,
-    isPost: false
+    isHome: false,
+    isPost: true
   };
 </script>
 
-  <title>List's Blog</title>
+  <title>混合云自动部署架构方案 | List's Blog</title>
   
     <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
     <script>
@@ -182,10 +188,10 @@
             
 
   <div class="posts-expand">
-        
+      
   
   
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
     <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-05-10-%E6%B7%B7%E5%90%88%E4%BA%91%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84%E6%96%B9%E6%A1%88/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -199,8 +205,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020-05-10-%E6%B7%B7%E5%90%88%E4%BA%91%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84%E6%96%B9%E6%A1%88/" class="post-title-link" itemprop="url">混合云自动部署架构方案</a>
+          混合云自动部署架构方案
         </h1>
 
         <div class="post-meta">
@@ -238,7 +243,7 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <a id="more"></a>
+        <a id="more"></a>
 
 <h1 id="混合云自动部署架构"><a href="#混合云自动部署架构" class="headerlink" title="混合云自动部署架构"></a>混合云自动部署架构</h1><h2 id="逻辑架构"><a href="#逻辑架构" class="headerlink" title="逻辑架构"></a>逻辑架构</h2><p>定义逻辑元素组成及其关系  </p>
 <p><img src="/img/kubernetes/architecture.png" alt=""></p>
@@ -978,729 +983,30 @@ e.g. hostname=10.10.2.131,service=hadoop-hdfs,type=platform 等。 Kubernetes �
 </tr>
 </tbody></table>
 
-      
     </div>
 
     
     
     
+
       <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
+          <div class="post-tags">
+              <a href="/tags/architecture/" rel="tag"># architecture</a>
+          </div>
 
         
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-04-08-Linux%20%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%88%86%E6%9E%90%20JVM%20Dump%20%E6%96%87%E4%BB%B6/">
 
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
 
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020-04-08-Linux%20%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%88%86%E6%9E%90%20JVM%20Dump%20%E6%96%87%E4%BB%B6/" class="post-title-link" itemprop="url">Linux 服务器分析 JVM Dump 文件</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2020-04-08 00:00:00" itemprop="dateCreated datePublished" datetime="2020-04-08T00:00:00+08:00">2020-04-08</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2020-04-08-Linux%20%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%88%86%E6%9E%90%20JVM%20Dump%20%E6%96%87%E4%BB%B6/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-04-08-Linux 服务器分析 JVM Dump 文件/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>JVM Dump 文件传输到本地分析，通常需要等待较长时间，且本地环境配置不支持分析大内存 JVM 的 Dump 文件。因此合理的方式是使用 Eclipse 的 MAT(MemoryAnalyzeTool) 工具在服务器上分析 Dump 文件结束后将结果传输到本地查看。    </p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020-04-08-Linux%20%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%88%86%E6%9E%90%20JVM%20Dump%20%E6%96%87%E4%BB%B6/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
         
-      
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020-04-08-Linux%20%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%88%86%E6%9E%90%20JVM%20Dump%20%E6%96%87%E4%BB%B6/" rel="prev" title="Linux 服务器分析 JVM Dump 文件">
+      <i class="fa fa-chevron-left"></i> Linux 服务器分析 JVM Dump 文件
+    </a></div>
+      <div class="post-nav-item"></div>
     </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
       </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-03-18-.git%E7%9B%AE%E5%BD%95%E8%BF%87%E5%A4%A7%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020-03-18-.git%E7%9B%AE%E5%BD%95%E8%BF%87%E5%A4%A7%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88/" class="post-title-link" itemprop="url">.git 目录过大问题解决方案</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2020-03-18 00:00:00" itemprop="dateCreated datePublished" datetime="2020-03-18T00:00:00+08:00">2020-03-18</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
     
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2020-03-18-.git%E7%9B%AE%E5%BD%95%E8%BF%87%E5%A4%A7%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-03-18-.git目录过大解决方案/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>.git 目录会记录所有文件的历史操作，当提交次数很多 特别是包含大文件时，很容易导致.git 目录很大，尤其是.git/objects/pack。造成的影响有流量超限、自动化部署慢等。   </p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020-03-18-.git%E7%9B%AE%E5%BD%95%E8%BF%87%E5%A4%A7%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-03-18-Spark-Adaptive-Execution-TPCDS-3TB-BenchMark-md/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020-03-18-Spark-Adaptive-Execution-TPCDS-3TB-BenchMark-md/" class="post-title-link" itemprop="url">Spark Adaptive Execution TPCDS 3TB BenchMark</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2020-03-17 00:00:00" itemprop="dateCreated datePublished" datetime="2020-03-17T00:00:00+08:00">2020-03-17</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2020-03-18-Spark-Adaptive-Execution-TPCDS-3TB-BenchMark-md/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-03-18-Spark-Adaptive-Execution-TPCDS-3TB-BenchMark-md/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Apache Spark 2.3.0 合并了 Spark 3.0-Preview(预览版)的 Adaptive Execution 和 Dynamic Partition Prune 两个重大特性之后, 在 3TB TPCDS 上的性能测试报告。  </p>
-<p><a href="https://docs.google.com/spreadsheets/d/1g37JP4D92LjK1vs8fj5LaQ7ipAaQ6lJinS84R8xS9x4/edit#gid=0" target="_blank" rel="noopener">Spark Adaptive Execution TPCDS 3TB BenchMark</a></p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/hello-world/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/hello-world/" class="post-title-link" itemprop="url">Hello World</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2020-03-16 18:01:28" itemprop="dateCreated datePublished" datetime="2020-03-16T18:01:28+08:00">2020-03-16</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/hello-world/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="hello-world/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/hello-world/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-02-23-Maven%20%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020-02-23-Maven%20%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/" class="post-title-link" itemprop="url">Maven 常用命令</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2020-02-23 00:00:00" itemprop="dateCreated datePublished" datetime="2020-02-23T00:00:00+08:00">2020-02-23</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2020-02-23-Maven%20%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-02-23-Maven 常用命令/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>　　</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020-02-23-Maven%20%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-02-14-Apache%20Spark%20TPCDS%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%95%B0%E6%8D%AE%E9%9B%86/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020-02-14-Apache%20Spark%20TPCDS%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%95%B0%E6%8D%AE%E9%9B%86/" class="post-title-link" itemprop="url">Apache Spark TPC-DS 性能测试数据</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2020-02-14 00:00:00" itemprop="dateCreated datePublished" datetime="2020-02-14T00:00:00+08:00">2020-02-14</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2020-02-14-Apache%20Spark%20TPCDS%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%95%B0%E6%8D%AE%E9%9B%86/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-02-14-Apache Spark TPCDS性能测试数据集/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="关于-TPC-DS"><a href="#关于-TPC-DS" class="headerlink" title="关于 TPC-DS"></a>关于 TPC-DS</h2><p>TPC(Transaction Process Performance Council, 事务处理性能委员会)是制定商务应用基准程序(Benchmark)的标准规范、性能和价格度量的非营利性组织。TPC-DS 是一个决策支持标准测试，它对决策支持系统的普适性建模，包括查询和数据修改维护。作为一个通用的决策支持标准测试，其提供了具有代表性的性能评估，测试结果包括单用户模式下的查询相应时间、多用户模式下的查询吞吐量、在受控复杂多用户决策支持的工作负载下给定硬件 操作系统 数据处理系统软件配置的数据维护性能。TPC-DS 决策支持标准测试目的是为行业用户提供客观的性能数据。TPC-DS 决策支持一些新兴技术，例如 Hadoop、Spark等大数据解决方案。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020-02-14-Apache%20Spark%20TPCDS%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%95%B0%E6%8D%AE%E9%9B%86/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88/" class="post-title-link" itemprop="url">Spark Executor 内存动态扩展方案</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2020-01-10 00:00:00" itemprop="dateCreated datePublished" datetime="2020-01-10T00:00:00+08:00">2020-01-10</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-01-10-Spark Executor 内存动态拓展方案/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>Spark Application 提交之后 Executor 内存被固定，业务环境上的长流程或长时处理任务经常由于 Executor 内存不足失败，导致人工干预、流程延迟且 Application 级恢复成本比较高。这种情况下，希望有套机制能够在 Executor 失败后再申请更大内存的 Executor 、对 Task 层面有更好的容错，在一定程度上减少 Task 由内存不足失败导致的 Application 失败恢复和人工干预成本。  </p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020-01-10-Spark%20Executor%20%E5%86%85%E5%AD%98%E5%8A%A8%E6%80%81%E6%8B%93%E5%B1%95%E6%96%B9%E6%A1%88/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-12-27-Apache%20Spark%203.0%20Preview%20%E6%96%B0%E7%89%B9%E6%80%A7%E5%92%8C%E6%94%B9%E5%8A%A8/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2019-12-27-Apache%20Spark%203.0%20Preview%20%E6%96%B0%E7%89%B9%E6%80%A7%E5%92%8C%E6%94%B9%E5%8A%A8/" class="post-title-link" itemprop="url">Apache Spark 3.0 Preview 新特性和改动</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2019-12-27 00:00:00" itemprop="dateCreated datePublished" datetime="2019-12-27T00:00:00+08:00">2019-12-27</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2019-12-27-Apache%20Spark%203.0%20Preview%20%E6%96%B0%E7%89%B9%E6%80%A7%E5%92%8C%E6%94%B9%E5%8A%A8/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-12-27-Apache Spark 3.0 Preview 新特性和改动/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>Apache Spark 3.0 Preview(预览版)发布于 2019-11-23。就 API 和功能而言预览版不是稳定版本，本文将列出预览版的重要新特性和改动。  </p>
-<h2 id="新特性"><a href="#新特性" class="headerlink" title="新特性"></a>新特性</h2><h3 id="Adaptive-Execution-Of-SparkSQL-适应性执行-AE"><a href="#Adaptive-Execution-Of-SparkSQL-适应性执行-AE" class="headerlink" title="Adaptive Execution Of SparkSQL(适应性执行,AE)"></a>Adaptive Execution Of SparkSQL(适应性执行,AE)</h3><p>适应性执行使用运行时的统计数据进行动态优化。通过使物理计划分阶段(不同于DAG的stage)并在运行期可修改，主要的优化点有:  </p>
-<ol>
-<li>BroadcastHashJoin(BHJ): 基础表的大小/行数来自于表 Statistics，中间操作产生的数据集大小/行数靠估计，基础表统计数据可能是错误的，中间数据集统计数据可能失真(e.g. 数据倾斜)。导致运行前制定的物理计划不适合运行时，例如运行前估计的中间数据集大小为 1GB 而选择 SortMergeJoin 但运行时发现中间数据集大小为 10MB 可以修改 join 策略为 BHJ。  </li>
-<li>分区数确定问题: 当分区输入数据量很小时(数据空洞,数据倾斜)，可以使一个task 处理多个连续分区的数据量(总量不超过指定值, e.g. 64MB)。      </li>
-<li>数据倾斜问题: 当分区输入数据量大于所有分区输入量中位数的指定倍数时，认为该分区数据倾斜，对此分区使用多个线程并行处理。    </li>
-</ol>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2019-12-27-Apache%20Spark%203.0%20Preview%20%E6%96%B0%E7%89%B9%E6%80%A7%E5%92%8C%E6%94%B9%E5%8A%A8/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" class="post-title-link" itemprop="url">SparkSQL 文件读取及划分分区源码解析</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2019-12-13 00:00:00" itemprop="dateCreated datePublished" datetime="2019-12-13T00:00:00+08:00">2019-12-13</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-12-13-SparkSQL 文件读取分区源码解析/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>不考虑 SQL 文本在 SparkSQL 中的全生命周期，仅关注 SQL 物理计划读取文件及分区划分的部分逻辑    </p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">linux&gt; spark-shell --master yarn --queue high</span><br><span class="line">scala&gt; val sql&#x3D;&quot;SELECT count(1) FROM utest.u_tbl_ifs_cost_aggregations&quot;</span><br><span class="line">scala&gt; val df &#x3D; spark.sql(sql)</span><br><span class="line">scala&gt; df.queryExecution.sparkPlan</span><br><span class="line">res0: org.apache.spark.sql.execution.SparkPlan &#x3D;</span><br><span class="line">HashAggregate(keys&#x3D;[], functions&#x3D;[count(1)], output&#x3D;[count(1)#47L])</span><br><span class="line">+- HashAggregate(keys&#x3D;[], functions&#x3D;[partial_count(1)], output&#x3D;[count#96L])</span><br><span class="line">   +- FileScan orc utest.u_tbl_ifs_cost_aggregations[] Batched: true, Format: ORC, Location: InMemoryFileIndex[hdfs:&#x2F;&#x2F;bj2&#x2F;user&#x2F;hive&#x2F;warehouse&#x2F;utest.db&#x2F;u_tbl_ifs_cost_aggregations], PartitionFilters: [], PushedFilters: [], ReadSchema: struct&lt;&gt;</span><br></pre></td></tr></table></figure>
-
-<p>即 SparkSQL 中读取表部分实际是委托给 FileSourceScanExec 来处理  </p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2019-12-13-SparkSQL%20%E6%96%87%E4%BB%B6%E8%AF%BB%E5%8F%96%E5%88%86%E5%8C%BA%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
   </article>
   
   
@@ -1708,15 +1014,16 @@ e.g. hostname=10.10.2.131,service=hadoop-hdfs,type=platform 等。 Kubernetes �
 
   </div>
 
-  
-  <nav class="pagination">
-    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right" aria-label="Next page"></i></a>
-  </nav>
-
-
 
           </div>
           
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
 
 <script>
   window.addEventListener('tabs:register', () => {
@@ -1763,6 +1070,7 @@ e.g. hostname=10.10.2.131,service=hadoop-hdfs,type=platform 等。 Kubernetes �
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#混合云自动部署架构"><span class="nav-number">1.</span> <span class="nav-text">混合云自动部署架构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#逻辑架构"><span class="nav-number">1.1.</span> <span class="nav-text">逻辑架构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#物理架构"><span class="nav-number">1.2.</span> <span class="nav-text">物理架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#物理架构-1"><span class="nav-number">1.2.1.</span> <span class="nav-text">物理架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#前置环境"><span class="nav-number">1.2.2.</span> <span class="nav-text">前置环境</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Web-Server-模块划分"><span class="nav-number">1.3.</span> <span class="nav-text">Web Server 模块划分</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Web-Server-功能划分"><span class="nav-number">1.4.</span> <span class="nav-text">Web Server 功能划分</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#集群管理"><span class="nav-number">1.4.1.</span> <span class="nav-text">集群管理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#私有云注册"><span class="nav-number">1.4.1.1.</span> <span class="nav-text">私有云注册</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#私有云信息更新"><span class="nav-number">1.4.1.2.</span> <span class="nav-text">私有云信息更新</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#私有云注销"><span class="nav-number">1.4.1.3.</span> <span class="nav-text">私有云注销</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#服务管理"><span class="nav-number">1.4.2.</span> <span class="nav-text">服务管理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#服务注册"><span class="nav-number">1.4.2.1.</span> <span class="nav-text">服务注册</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#服务信息更新"><span class="nav-number">1.4.2.2.</span> <span class="nav-text">服务信息更新</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#服务注销"><span class="nav-number">1.4.2.3.</span> <span class="nav-text">服务注销</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#镜像版本库管理"><span class="nav-number">1.4.3.</span> <span class="nav-text">镜像版本库管理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#镜像注册"><span class="nav-number">1.4.3.1.</span> <span class="nav-text">镜像注册</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#镜像注销"><span class="nav-number">1.4.3.2.</span> <span class="nav-text">镜像注销</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#信息更新"><span class="nav-number">1.4.3.3.</span> <span class="nav-text">信息更新</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#组件管理"><span class="nav-number">1.4.4.</span> <span class="nav-text">组件管理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#新增组件"><span class="nav-number">1.4.4.1.</span> <span class="nav-text">新增组件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#升级回滚"><span class="nav-number">1.4.4.2.</span> <span class="nav-text">升级回滚</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#组件启停"><span class="nav-number">1.4.4.3.</span> <span class="nav-text">组件启停</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#组件删除"><span class="nav-number">1.4.4.4.</span> <span class="nav-text">组件删除</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#信息同步"><span class="nav-number">1.4.4.5.</span> <span class="nav-text">信息同步</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#节点管理"><span class="nav-number">1.4.5.</span> <span class="nav-text">节点管理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#基本信息"><span class="nav-number">1.4.5.1.</span> <span class="nav-text">基本信息</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#角色管理"><span class="nav-number">1.4.5.2.</span> <span class="nav-text">角色管理</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#扩容"><span class="nav-number">1.4.5.2.1.</span> <span class="nav-text">扩容</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#缩容"><span class="nav-number">1.4.5.2.2.</span> <span class="nav-text">缩容</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#启动、停止"><span class="nav-number">1.4.5.2.3.</span> <span class="nav-text">启动、停止</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#信息同步-1"><span class="nav-number">1.4.5.3.</span> <span class="nav-text">信息同步</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#配置管理"><span class="nav-number">1.4.6.</span> <span class="nav-text">配置管理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#外挂配置文件"><span class="nav-number">1.4.6.1.</span> <span class="nav-text">外挂配置文件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#组件配置管理"><span class="nav-number">1.4.6.2.</span> <span class="nav-text">组件配置管理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#节点角色配置管理"><span class="nav-number">1.4.6.3.</span> <span class="nav-text">节点角色配置管理</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#自动化运维"><span class="nav-number">1.4.7.</span> <span class="nav-text">自动化运维</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#周期性任务"><span class="nav-number">1.4.7.1.</span> <span class="nav-text">周期性任务</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#信息同步-2"><span class="nav-number">1.4.7.2.</span> <span class="nav-text">信息同步</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#权限管理"><span class="nav-number">1.4.8.</span> <span class="nav-text">权限管理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#数据库设计"><span class="nav-number">1.5.</span> <span class="nav-text">数据库设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#私有云集群信息表-tbl-cluster"><span class="nav-number">1.5.1.</span> <span class="nav-text">私有云集群信息表(tbl_cluster)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#服务角色信息表-tbl-service"><span class="nav-number">1.5.2.</span> <span class="nav-text">服务角色信息表(tbl_service)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#镜像版本信息-tbl-service-image"><span class="nav-number">1.5.3.</span> <span class="nav-text">镜像版本信息(tbl_service_image)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#私有云组件信息-tbl-cluster-component"><span class="nav-number">1.5.4.</span> <span class="nav-text">私有云组件信息(tbl_cluster_component)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#私有云部署信息-tbl-cluster-deployment"><span class="nav-number">1.5.5.</span> <span class="nav-text">私有云部署信息(tbl_cluster_deployment)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#私有云网络服务信息-tbl-cluster-network-service"><span class="nav-number">1.5.6.</span> <span class="nav-text">私有云网络服务信息(tbl_cluster_network_service)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#私有云定时任务信息-tbl-cronjob"><span class="nav-number">1.5.7.</span> <span class="nav-text">私有云定时任务信息(tbl_cronjob)</span></a></li></ol></li></ol></li></ol></div>
       </div>
       <!--/noindex-->
 
@@ -1888,6 +1196,26 @@ e.g. hostname=10.10.2.131,service=hadoop-hdfs,type=platform 等。 Kubernetes �
   }
   // defer loading until the whole page loading is completed
   window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2020-05-10-%E6%B7%B7%E5%90%88%E4%BA%91%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84%E6%96%B9%E6%A1%88/",
+            identifier: "2020-05-10-混合云自动部署架构方案/",
+            title: "混合云自动部署架构方案"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong-zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
 </script>
 
 </body>

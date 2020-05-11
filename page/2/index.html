@@ -186,6 +186,85 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="List">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="List's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/" class="post-title-link" itemprop="url">SparkSQL源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-12-10 00:00:00" itemprop="dateCreated datePublished" datetime="2019-12-10T00:00:00+08:00">2019-12-10</time>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-12-10-SparkSQL 源码解析(3):从 ResolvedLogicPlan 到 OptimizedLogicPlan/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>Parser 模块负责将 SQL 文本解析为 UnResolvedLogicPlan，Analyzer 模块负责将 UnResolvedLogicPlan 绑定解析为 ResolvedLogicPlan。Rule-Based Optimizer，简称 RBO 或 Optimizer 模块负责基于规则优化逻辑计划，主要思路是基于各类型规则对 ResolvedLogicPlan 进行优化达到减少每个逻辑计划树节点输入数据量或计算代价的目的，大名鼎鼎的列裁剪和谓词下推、常量折叠就是出自于 Optimizer 模块。      </p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2019-12-10-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(3):%E4%BB%8E%20ResolvedLogicPlan%20%E5%88%B0%20OptimizedLogicPlan/#more" rel="contents">
+                Read more &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
     <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-11-29-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(2):%E4%BB%8E%20UnresolvedLogicPlan%20%E5%88%B0%20ResolvedLogicPlan/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -918,90 +997,11 @@ Used Capacity、Absolute Used Capacity、Used Resource、Num Containers指标非
   
   
 
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-08-09-ExecutorAllocationManager/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
-      <meta itemprop="description" content="Hello World!">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2019-08-09-ExecutorAllocationManager/" class="post-title-link" itemprop="url">ExecutorAllocationManager源码分析</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2019-08-09 00:00:00" itemprop="dateCreated datePublished" datetime="2019-08-09T00:00:00+08:00">2019-08-09</time>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Disqus: </span>
-    
-    <a title="disqus" href="/2019-08-09-ExecutorAllocationManager/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-08-09-ExecutorAllocationManager/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a>摘要</h2><p>Spark 为 Standalone 和 CoarseGrained(Yarn/Mesos)调度模式提供了动态资源(executor)分配功能,可以根据 Application 的工作负载动态调整其占用的资源.在多 Application 同时运行的情况下,可以提高资源利用率.原理是Spark 定时调度,利用正在运行和积压的任务数推算出需要的executor 数量并和已持有的数量对比,增加 executor;利用维护的节点空闲时间信息,释放掉空闲的 executor.</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2019-08-09-ExecutorAllocationManager/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
   </div>
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/"><i class="fa fa-angle-left" aria-label="Previous page"></i></a><a class="page-number" href="/">1</a><span class="page-number current">2</span>
+    <a class="extend prev" rel="prev" href="/"><i class="fa fa-angle-left" aria-label="Previous page"></i></a><a class="page-number" href="/">1</a><span class="page-number current">2</span><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/3/"><i class="fa fa-angle-right" aria-label="Next page"></i></a>
   </nav>
 
 
@@ -1067,14 +1067,14 @@ Used Capacity、Absolute Used Capacity、Used Resource、Num Containers指标非
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">20</span>
+          <span class="site-state-item-count">21</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-count">15</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>
