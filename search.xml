@@ -1770,8 +1770,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>Spark 2.3.0</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Spark On Yarn ExitCode</tag>
       </tags>
   </entry>
@@ -1821,8 +1821,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn User Headroom</tag>
       </tags>
   </entry>
@@ -2437,8 +2437,8 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html</a><br><a href="https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us" target="_blank" rel="noopener">https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us</a><br><a href="http://gitbook.net/java/util/java_util_treemap.html" target="_blank" rel="noopener">http://gitbook.net/java/util/java_util_treemap.html</a>  </p>
 ]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn ReservationSystem</tag>
       </tags>
   </entry>
@@ -2588,9 +2588,9 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html</a><br><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption</a><br><a href="https://www.aboutyun.com/thread-24628-1-1.html" target="_blank" rel="noopener">https://www.aboutyun.com/thread-24628-1-1.html</a></p>
 ]]></content>
       <tags>
+        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
         <tag>Yarn PreemptionSystem</tag>
-        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -2925,8 +2925,8 @@ LeafQueue 和ParentQueue  一样,使用抽象父类AbstractCSQueue#allocateResou
 
 <h2 id="线上测试用例"><a href="#线上测试用例" class="headerlink" title="线上测试用例"></a>线上测试用例</h2>]]></content>
       <tags>
-        <tag>Yarn 2.7.3</tag>
         <tag>源码解析</tag>
+        <tag>Yarn 2.7.3</tag>
         <tag>Yarn 优化</tag>
       </tags>
   </entry>

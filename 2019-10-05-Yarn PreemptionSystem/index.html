@@ -50,15 +50,15 @@
 <meta property="og:type" content="article">
 <meta property="og:title" content="Yarn PreemptionSystem">
 <meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;index.html">
-<meta property="og:site_name" content="List&#39;s Blog">
+<meta property="og:site_name" content="Acadia">
 <meta property="og:description" content="前言Yarn 使用树状层级队列组织方式来管理资源,所有 NodeManager 持有的资源聚集作为资源根队列 root 来代表集群中所有可用资源,root可有有多个子队列,子队列也可以有自己的子队列,树状层级结构的最底层为叶子队列.除 root 外,每个子队列都会持有父队列一定比例的资源 即最低配额(Configured Capacity),以及最多可持有的资源 即最高配额(Configured">
 <meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;img&#x2F;pictures&#x2F;yarn_preempt&#x2F;preempt_queue.png">
 <meta property="article:published_time" content="2019-10-04T16:00:00.000Z">
 <meta property="article:modified_time" content="2020-03-16T10:01:28.106Z">
-<meta property="article:author" content="List">
+<meta property="article:author" content="Acadia">
+<meta property="article:tag" content="源码解析">
 <meta property="article:tag" content="Yarn 2.7.3">
 <meta property="article:tag" content="Yarn PreemptionSystem">
-<meta property="article:tag" content="源码解析">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;img&#x2F;pictures&#x2F;yarn_preempt&#x2F;preempt_queue.png">
 
@@ -74,7 +74,7 @@
   };
 </script>
 
-  <title>Yarn PreemptionSystem | List's Blog</title>
+  <title>Yarn PreemptionSystem | Acadia</title>
   
     <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
     <script>
@@ -127,11 +127,11 @@
     <div>
       <a href="/" class="brand" rel="start">
         <span class="logo-line-before"><i></i></span>
-        <span class="site-title">List's Blog</span>
+        <span class="site-title">Acadia</span>
         <span class="logo-line-after"><i></i></span>
       </a>
     </div>
-        <p class="site-subtitle">李斯特</p>
+        <p class="site-subtitle">Acadia</p>
   </div>
 
   <div class="site-nav-toggle">
@@ -197,12 +197,12 @@
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="List">
+      <meta itemprop="name" content="Acadia">
       <meta itemprop="description" content="Hello World!">
     </span>
 
     <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="List's Blog">
+      <meta itemprop="name" content="Acadia">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
@@ -394,9 +394,9 @@
 
       <footer class="post-footer">
           <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
               <a href="/tags/Yarn-2-7-3/" rel="tag"># Yarn 2.7.3</a>
               <a href="/tags/Yarn-PreemptionSystem/" rel="tag"># Yarn PreemptionSystem</a>
-              <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
           </div>
 
         
@@ -484,7 +484,7 @@
 
       <div class="site-overview-wrap sidebar-panel">
         <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
-  <p class="site-author-name" itemprop="name">List</p>
+  <p class="site-author-name" itemprop="name">Acadia</p>
   <div class="site-description" itemprop="description">Hello World!</div>
 </div>
 <div class="site-state-wrap motion-element">
@@ -536,7 +536,7 @@
   <span class="with-love">
     <i class="fa fa-user"></i>
   </span>
-  <span class="author" itemprop="copyrightHolder">List</span>
+  <span class="author" itemprop="copyrightHolder">Acadia</span>
 </div>
   <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
   </div>
