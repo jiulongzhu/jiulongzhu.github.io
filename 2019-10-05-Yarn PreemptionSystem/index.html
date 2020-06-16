@@ -54,11 +54,10 @@
 <meta property="og:description" content="前言Yarn 使用树状层级队列组织方式来管理资源,所有 NodeManager 持有的资源聚集作为资源根队列 root 来代表集群中所有可用资源,root可有有多个子队列,子队列也可以有自己的子队列,树状层级结构的最底层为叶子队列.除 root 外,每个子队列都会持有父队列一定比例的资源 即最低配额(Configured Capacity),以及最多可持有的资源 即最高配额(Configured">
 <meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;img&#x2F;pictures&#x2F;yarn_preempt&#x2F;preempt_queue.png">
 <meta property="article:published_time" content="2019-10-04T16:00:00.000Z">
-<meta property="article:modified_time" content="2020-03-16T10:01:28.106Z">
+<meta property="article:modified_time" content="2020-06-16T06:40:51.649Z">
 <meta property="article:author" content="Acadia">
 <meta property="article:tag" content="源码解析">
 <meta property="article:tag" content="Yarn 2.7.3">
-<meta property="article:tag" content="Yarn PreemptionSystem">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2019-10-05-Yarn%20PreemptionSystem&#x2F;img&#x2F;pictures&#x2F;yarn_preempt&#x2F;preempt_queue.png">
 
@@ -396,7 +395,6 @@
           <div class="post-tags">
               <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="tag"># 源码解析</a>
               <a href="/tags/Yarn-2-7-3/" rel="tag"># Yarn 2.7.3</a>
-              <a href="/tags/Yarn-PreemptionSystem/" rel="tag"># Yarn PreemptionSystem</a>
           </div>
 
         
@@ -499,7 +497,7 @@
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-count">8</span>
         <span class="site-state-item-name">tags</span></a>
       </div>
   </nav>

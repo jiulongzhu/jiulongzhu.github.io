@@ -185,7 +185,7 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 </ol>
 ]]></content>
       <tags>
-        <tag>Spark 2.3</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Adaptive Execution</tag>
       </tags>
   </entry>
@@ -265,7 +265,7 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 </ul>
 ]]></content>
       <tags>
-        <tag>Spark 2.3</tag>
+        <tag>Spark 2.3.0</tag>
       </tags>
   </entry>
   <entry>
@@ -1340,8 +1340,6 @@ d. 规整队列待抢占量
 ]]></content>
       <tags>
         <tag>Yarn 2.7.3</tag>
-        <tag>Yarn PreemptionSystem</tag>
-        <tag>Yarn large container</tag>
       </tags>
   </entry>
   <entry>
@@ -1823,7 +1821,6 @@ d. 规整队列待抢占量
       <tags>
         <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
-        <tag>Yarn User Headroom</tag>
       </tags>
   </entry>
   <entry>
@@ -2439,7 +2436,6 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
       <tags>
         <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
-        <tag>Yarn ReservationSystem</tag>
       </tags>
   </entry>
   <entry>
@@ -2590,7 +2586,6 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
       <tags>
         <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
-        <tag>Yarn PreemptionSystem</tag>
       </tags>
   </entry>
   <entry>
@@ -2927,7 +2922,6 @@ LeafQueue 和ParentQueue  一样,使用抽象父类AbstractCSQueue#allocateResou
       <tags>
         <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
-        <tag>Yarn 优化</tag>
       </tags>
   </entry>
   <entry>
