@@ -1770,7 +1770,7 @@ d. 规整队列待抢占量
       <tags>
         <tag>Spark 2.3.0</tag>
         <tag>Yarn 2.7.3</tag>
-        <tag>Spark On Yarn ExitCode</tag>
+        <tag>Spark On Yarn</tag>
       </tags>
   </entry>
   <entry>
