@@ -49,25 +49,25 @@
   <meta name="description" content="Hello World!">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Acadia">
-<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;archives&#x2F;2019&#x2F;11&#x2F;index.html">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;page&#x2F;3&#x2F;index.html">
 <meta property="og:site_name" content="Acadia">
 <meta property="og:description" content="Hello World!">
 <meta property="article:author" content="Acadia">
 <meta name="twitter:card" content="summary">
 
-<link rel="canonical" href="https://jiulongzhu.github.io/archives/2019/11/">
+<link rel="canonical" href="https://jiulongzhu.github.io/page/3/">
 
 
 <script id="page-configurations">
   // https://hexo.io/docs/variables.html
   CONFIG.page = {
     sidebar: "",
-    isHome: false,
+    isHome: true,
     isPost: false
   };
 </script>
 
-  <title>Archive | Acadia</title>
+  <title>Acadia</title>
   
     <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
     <script>
@@ -181,148 +181,92 @@
           <div class="content">
             
 
+  <div class="posts-expand">
+        
   
   
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-08-09-ExecutorAllocationManager/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Acadia">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Acadia">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2019-08-09-ExecutorAllocationManager/" class="post-title-link" itemprop="url">ExecutorAllocationManager源码分析</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-08-09 00:00:00" itemprop="dateCreated datePublished" datetime="2019-08-09T00:00:00+08:00">2019-08-09</time>
+            </span>
+
+          
   
-  <div class="post-block">
-    <div class="posts-collapse">
-      <div class="collection-title">
-        <span class="collection-header">Um..! 21 posts in total. Keep on posting.</span>
-      </div>
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-08-09-ExecutorAllocationManager/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-08-09-ExecutorAllocationManager/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
 
       
-    <div class="collection-year">
-      <h1 class="collection-header">2019</h1>
+          <h2 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a>摘要</h2><p>Spark 为 Standalone 和 CoarseGrained(Yarn/Mesos)调度模式提供了动态资源(executor)分配功能,可以根据 Application 的工作负载动态调整其占用的资源.在多 Application 同时运行的情况下,可以提高资源利用率.原理是Spark 定时调度,利用正在运行和积压的任务数推算出需要的executor 数量并和已持有的数量对比,增加 executor;利用维护的节点空闲时间信息,释放掉空闲的 executor.</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2019-08-09-ExecutorAllocationManager/#more" rel="contents">
+                Read more &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
     </div>
 
-  <article itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
-
-      <div class="post-meta">
-        <time itemprop="dateCreated"
-              datetime="2019-11-29T00:00:00+08:00"
-              content="2019-11-29">
-          11-29
-        </time>
-      </div>
-
-      <h2 class="post-title">
-          <a class="post-title-link" href="/2019-11-29-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(2):%E4%BB%8E%20UnresolvedLogicPlan%20%E5%88%B0%20ResolvedLogicPlan/" itemprop="url">
-            <span itemprop="name">SparkSQL源码解析(2):从 UnsolvedLogicPlan 到 ResolvedLogicPlan</span>
-          </a>
-      </h2>
-
-    </header>
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
   </article>
+  
+  
+  
 
-  <article itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
-
-      <div class="post-meta">
-        <time itemprop="dateCreated"
-              datetime="2019-11-28T00:00:00+08:00"
-              content="2019-11-28">
-          11-28
-        </time>
-      </div>
-
-      <h2 class="post-title">
-          <a class="post-title-link" href="/2019-11-28-SparkSQL%20%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90(1):%E4%BB%8E%20SQL%20%E5%88%B0%20UnResolvedLogicPlan/" itemprop="url">
-            <span itemprop="name">SparkSQL源码解析(1):从 SQL 到 UnResolvedLogicPlan</span>
-          </a>
-      </h2>
-
-    </header>
-  </article>
-
-  <article itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
-
-      <div class="post-meta">
-        <time itemprop="dateCreated"
-              datetime="2019-11-25T00:00:00+08:00"
-              content="2019-11-25">
-          11-25
-        </time>
-      </div>
-
-      <h2 class="post-title">
-          <a class="post-title-link" href="/2019-11-25-%E5%9F%BA%E4%BA%8E%E9%98%9F%E5%88%97%E4%BC%98%E5%85%88%E7%BA%A7%E7%9A%84%E5%B0%8F%E9%9B%86%E7%BE%A4%E5%A4%A7%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E6%8A%A2%E5%8D%A0%E6%96%B9%E6%A1%88/" itemprop="url">
-            <span itemprop="name">基于队列优先级的小集群大容器资源抢占模式</span>
-          </a>
-      </h2>
-
-    </header>
-  </article>
-
-  <article itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
-
-      <div class="post-meta">
-        <time itemprop="dateCreated"
-              datetime="2019-11-22T00:00:00+08:00"
-              content="2019-11-22">
-          11-22
-        </time>
-      </div>
-
-      <h2 class="post-title">
-          <a class="post-title-link" href="/2019-11-22-Improved%20MapPartitions%20In%20Spark/" itemprop="url">
-            <span itemprop="name">Improved MapPartitions In Spark</span>
-          </a>
-      </h2>
-
-    </header>
-  </article>
-
-  <article itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
-
-      <div class="post-meta">
-        <time itemprop="dateCreated"
-              datetime="2019-11-18T00:00:00+08:00"
-              content="2019-11-18">
-          11-18
-        </time>
-      </div>
-
-      <h2 class="post-title">
-          <a class="post-title-link" href="/2019-11-18-SparkOnYarn%20%E4%BB%BB%E5%8A%A1%E9%80%80%E5%87%BA%E7%A0%81/" itemprop="url">
-            <span itemprop="name">Spark On Yarn 任务退出码</span>
-          </a>
-      </h2>
-
-    </header>
-  </article>
-
-  <article itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
-
-      <div class="post-meta">
-        <time itemprop="dateCreated"
-              datetime="2019-11-12T00:00:00+08:00"
-              content="2019-11-12">
-          11-12
-        </time>
-      </div>
-
-      <h2 class="post-title">
-          <a class="post-title-link" href="/2019-11-12-Yarn%20User%20Headroom/" itemprop="url">
-            <span itemprop="name">Yarn User Headroom</span>
-          </a>
-      </h2>
-
-    </header>
-  </article>
-
-
-    </div>
   </div>
-  
-  
-  
 
   
+  <nav class="pagination">
+    <a class="extend prev" rel="prev" href="/page/2/"><i class="fa fa-angle-left" aria-label="Previous page"></i></a><a class="page-number" href="/">1</a><a class="page-number" href="/page/2/">2</a><span class="page-number current">3</span>
+  </nav>
 
 
 
