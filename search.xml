@@ -44,7 +44,7 @@
 </tr>
 <tr>
 <td align="left">spark.hive.automerge.shuffle.enabled</td>
-<td align="left">true</td>
+<td align="left">false</td>
 <td align="left">重分区时是否开启 shuffle。true 时为 repartition，false 时为coalesce</td>
 </tr>
 </tbody></table>
@@ -53,7 +53,7 @@
 </blockquote>
 <ol>
 <li>日志信息<br>INFO MergeHiveSmallFileUtil: merge table: user_profile.dwd_user_profile_di ,partition:second=visit/third=visit_7d finished, cost 164 ms.before {total length in bytes: 233 ,file number: 3} ,after {file number: 1}    </li>
-<li>Spark History EventLog<br>{“Event”:”org.apache.spark.sql.hive.execution.AutoMergeSmallFileEvent”,”table”:”user_profile.dwd_user_profile_di”,”part”:”second=visit/third=visit_7d”,”totalLenInByte”:233,”numBefore”:3,”numAfter”:1,”diff”:2}  </li>
+<li>Spark History EventLog<br>{“Event”:”org.apache.spark.sql.hive.execution.AutoMergeSmallFileEvent”,”table”:”user_profile.dwd_user_profile_di”,”part”:”second=visit/third=visit_7d”,”totalLenInByte”:233,”numBefore”:3,”numAfter”:1,”diff”:2,”costInMillSec”:164}    </li>
 </ol>
 <h2 id="todo"><a href="#todo" class="headerlink" title="todo"></a>todo</h2><ol>
 <li>临时文件以 Hive TableDesc 定义的 output format(e.g. org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat) 形式写出，但是无法用 TableDesc定义的 input format来读取。因为 Hive TableDesc 定义的 input/output format 不是一个可用的 Spark SQL DataSource。使用 sparkSession.read.option(“inputFormat”,TableDesc.getInputFormatClassName).option(‘outputformat’,TableDesc.getOutputFormatClassName)也无法解决此问题，因为 spark 默认的 DataSource 为 parquet。没有在源代码中找到更优雅的方式来映射 Hive output format 到 Spark SQL DataSource，求助于 spark dev list 也未收到回复，目前采用的是死板的枚举映射判断 Hive outputformat 的后缀(e.g. orcoutputformat-&gt;orc)。  </li>
