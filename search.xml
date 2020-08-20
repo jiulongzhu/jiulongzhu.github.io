@@ -39,8 +39,8 @@
 <figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">val env &#x3D; StreamExecutionEnvironment.getExecutionEnvironment()</span><br><span class="line"> </span><br><span class="line">val myConsumer &#x3D; new FlinkKafkaConsumer[String](...)</span><br><span class="line">myConsumer.setStartFromEarliest()      &#x2F;&#x2F; start from the earliest record possible</span><br><span class="line">myConsumer.setStartFromLatest()        &#x2F;&#x2F; start from the latest record</span><br><span class="line">myConsumer.setStartFromTimestamp(...)  &#x2F;&#x2F; start from specified epoch timestamp (milliseconds)</span><br><span class="line">myConsumer.setStartFromGroupOffsets()  &#x2F;&#x2F; the default behaviour</span><br><span class="line"> </span><br><span class="line">val specificStartOffsets &#x3D; new java.util.HashMap[KafkaTopicPartition, java.lang.Long]()  &#x2F;&#x2F; start from specific offset</span><br><span class="line">specificStartOffsets.put(new KafkaTopicPartition(&quot;myTopic&quot;, 0), 23L)</span><br><span class="line">specificStartOffsets.put(new KafkaTopicPartition(&quot;myTopic&quot;, 1), 31L)</span><br><span class="line">specificStartOffsets.put(new KafkaTopicPartition(&quot;myTopic&quot;, 2), 43L)</span><br><span class="line">myConsumer.setStartFromSpecificOffsets(specificStartOffsets)</span><br><span class="line">val stream &#x3D; env.addSource(myConsumer)</span><br></pre></td></tr></table></figure>
 
 <blockquote>
-</blockquote>
 <p>当作业从 Checkpoint 或 SavePoint 中恢复时，这些消费位置的定制方法不会影响开始消费位置。<br>在恢复时，每个 topic partition offset 取值于存储在 SavePoint 或 CheckPoint 中的 offset。   </p>
+</blockquote>
 <h3 id="Consumer-容错"><a href="#Consumer-容错" class="headerlink" title="Consumer 容错"></a>Consumer 容错</h3><ol>
 <li>当启用了 checkpoint 时，Flink Kafka Consumer 会从 topic 中消费记录并周期性地 checkpoint kafka offset 和其他操作的状态。当 Flink 应用失败时 会从最新的 checkpoint 中恢复并从  checkpoint 存储的 topic offset 处开始消费数据。  </li>
 <li>当禁用了 checkpoint 时，Flink Kafka Consumer 会周期性地提交 offset 到 zookeeper。   </li>
@@ -78,17 +78,16 @@
 <li>Semantic.EXACTLY_ONCE: 使用 Kafka 事务来保证 exactly-once 语义。当使用事务向 Kafka 写数据时，需要对相关 topic 的 consumer 设置”隔离级别(isolation.level)”。隔离级别分两种 read_committed 或 read_uncommitted(默认)。   </li>
 </ol>
 <blockquote>
-<p>注意事项:      </p>
-</blockquote>
+<p>注意事项:</p>
 <ol>
 <li>Semantic.EXACTLY_ONCE mode relies on the ability to commit transactions that were started before taking a checkpoint, after recovering from the said checkpoint. If the time between Flink application crash and completed restart is larger than Kafka’s transaction timeout there will be data loss (Kafka will automatically abort transactions that exceeded timeout time).
 exactly-once 语义依赖于 提交 “开始于 checkpoint 之前” 和 “从 checkpoint 恢复之后”的事务的能力。如果 Flink 应用从崩溃到完全恢复所用的时间大于 Kafka 事务超时时间，那么数据会丢失(Kafka 会自动放弃超时事务)。 </li>
 <li>由于“译不准”，此处似乎也可以理解为 “exactly-once 语义依赖于提交特殊事务的能力，特殊事务开始于 checkpoint 之前，终止于从 checkpoint 恢复之后”。事务开启，状态尚未存储而应用挂掉，恢复后事务超时被 Broker 放弃导致了数据丢失，无法保证”exactly-once”语义。  </li>
 </ol>
+</blockquote>
 <p>FlinkKafkaProducer 要求”exactly-once”语义时，topic 的所有 consumer 都必须设置隔离级别，默认为 read_uncommitted。    </p>
 <blockquote>
 <p>关于 read_committed 模式，在 KafkaConsumer 启用了 read_committed 模式时，任何 未完成 / 未终止 的事务将会阻塞对该事务之后的所有事务的读取。  例如:     </p>
-</blockquote>
 <ol>
 <li>producer 开启 transaction1 并写入了一些记录    </li>
 <li>producer 开启了 transaction2 并写入了其他记录    </li>
@@ -96,18 +95,13 @@ exactly-once 语义依赖于 提交 “开始于 checkpoint 之前” 和 “从
 <li>在 Flink application 正常运行期间，输出到 topic 记录的可见性会有一定延迟，这等于已完成 checkpoint 的平均时间。   </li>
 <li>当 Flink application 失败，将阻塞其写入的 topic 的所有 consumer，直到应用重启或者 Kafka transaction 超时。在有多个 producer / consumer 同时操作同一个 topic 时”exacty-once”造成的阻塞风险需要评估。      </li>
 </ol>
+</blockquote>
 <h3 id="分区方案"><a href="#分区方案" class="headerlink" title="分区方案"></a>分区方案</h3><p>使用 FlinkKafkaProducer 向 Kafka 写数据时，如果不指定分区器 Partitioner，默认使用 FlinkFixedPartitioner。该 Partitioner 分区的方式是将 Task 所在的实例 Id 按照 topic partition 总数取余将 sink 映射到单个的 topic partition 上，即：partitions[parallelInstanceId % partitions.length]。如果 topic partition 总数为 5，sink 并发度为 2，那么最终只有两个 topic partition 有数据；如果 sink 并发度为 6，那么 1 号 partition 有两个 sink 在写，会导致 Broker 负载均衡问题。<br>如果指定 Partitioner 为 null，会使用 kafka producer 默认的分区方式，sink 可能会轮询写所有 partition。topic partition 的数据比较均衡，但是会相对保持更多的网络连接。<br>因此使用 FlinkFixedPartitioner 并配置 sink 并发度为 topic partition 数量的整数倍较合理。    </p>
 <h2 id="Kerberos-认证"><a href="#Kerberos-认证" class="headerlink" title="Kerberos 认证"></a>Kerberos 认证</h2><p>Flink 为连接到开启了 Kerberos 认证的 Kafka 集群 通过 FlinkKafkaConnector 提供了支持。只需要在 flink-conf.yaml 中简单配置即可启用 kerberos    </p>
 <ol>
 <li>配置以下配置项</li>
 </ol>
-<ul>
-<li>security.kerberos.login.use-ticket-cache：默认情况下为 true，Flink 尝试使用 kinit 管理的 ticket cache 中的 kerberos 证书(credentials)，但是当 Flink Job 被部署到 Yarn 和 Mesos 时，这个配置是不生效的，因为 Yarn 和 Mesos 不支持使用 ticket cache 中的证书认证      </li>
-<li>security.kerberos.login.keytab and security.kerberos.login.principal：使用 kerberos keytab 来认证     </li>
-</ul>
-<ol start="2">
-<li>在 security.kerberos.login.contexts 配置后追加 KafkaClient：此配置告诉 Flink 提供已配置的 kerberos 证书给 Kafka Login Context 以进行 Kafka 认证    </li>
-</ol>
+<p>　- security.kerberos.login.use-ticket-cache：默认情况下为 true，Flink 尝试使用 kinit 管理的 ticket cache 中的 kerberos 证书(credentials)，但是当 Flink Job 被部署到 Yarn 和 Mesos 时，这个配置是不生效的，因为 Yarn 和 Mesos 不支持使用 ticket cache 中的证书认证<br>　- security.kerberos.login.keytab and security.kerberos.login.principal：使用 kerberos keytab 来认证<br>2. 在 security.kerberos.login.contexts 配置后追加 KafkaClient：此配置告诉 Flink 提供已配置的 kerberos 证书给 Kafka Login Context 以进行 Kafka 认证    </p>
 <p>一旦基于 Kerberos 认证的 Flink 安全机制启用后，可以在 FlinkKafkaProducer / FlinkKafkaConsumer 中添加两个配置以传给内部的 KafkaClient 来进行 Kafka 认证。    </p>
 <ol>
 <li>设置 security.protocol 为 SASL_PLAINTEXT(默认 NONE): 此协议用于和 Broker 通信。使用 standalone 部署 Flink 时可以设置 security.protocol 为 SASL_SSL。</li>
@@ -566,8 +560,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <p>注: 高压缩率 ORC 文件 4MB 解压后有 4G 左右的大小，可能需要降低下限    </p>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1017,8 +1011,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 </tbody></table>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1399,8 +1393,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">def lookupFunction(</span><br><span class="line">      name: FunctionIdentifier,</span><br><span class="line">      children: Seq[Expression]): Expression &#x3D; synchronized &#123;</span><br><span class="line">    if (name.database.isEmpty &amp;&amp; functionRegistry.functionExists(name)) &#123;</span><br><span class="line">      &#x2F;&#x2F; This function has been already loaded into the function registry.</span><br><span class="line">      return functionRegistry.lookupFunction(name, children)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; If the name itself is not qualified, add the current database to it.</span><br><span class="line">    val database &#x3D; formatDatabaseName(name.database.getOrElse(getCurrentDatabase))</span><br><span class="line">    val qualifiedName &#x3D; name.copy(database &#x3D; Some(database))</span><br><span class="line"></span><br><span class="line">    if (functionRegistry.functionExists(qualifiedName)) &#123;</span><br><span class="line">      return functionRegistry.lookupFunction(qualifiedName, children)</span><br><span class="line">    &#125;</span><br><span class="line">    val catalogFunction &#x3D; try &#123;</span><br><span class="line">      externalCatalog.getFunction(database, name.funcName)</span><br><span class="line">    &#125; catch &#123;</span><br><span class="line">      case _: AnalysisException &#x3D;&gt; failFunctionLookup(name)</span><br><span class="line">      case _: NoSuchPermanentFunctionException &#x3D;&gt; failFunctionLookup(name)</span><br><span class="line">    &#125;</span><br><span class="line">    loadFunctionResources(catalogFunction.resources)</span><br><span class="line">    registerFunction(catalogFunction.copy(identifier &#x3D; qualifiedName), overrideIfExists &#x3D; false)</span><br><span class="line">    &#x2F;&#x2F; Now, we need to create the Expression.</span><br><span class="line">    functionRegistry.lookupFunction(qualifiedName, children)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1437,8 +1431,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <p>visitTable 方法的返回值是 UnresovedRelation<br>visitStar 方法的返回值是 UnresolvedStar<br>visitColumnReference 方法的返回值是 UnresolvedRegex 或 UnresolvedAttribute<br>visitFunctionCall 方法的返回值是 UnresolvedWindowExpression 或 WindowExpression<br>….</p>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1994,8 +1988,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark On Yarn</tag>
       </tags>
   </entry>
@@ -2045,8 +2039,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -2660,8 +2654,8 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html</a><br><a href="https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us" target="_blank" rel="noopener">https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us</a><br><a href="http://gitbook.net/java/util/java_util_treemap.html" target="_blank" rel="noopener">http://gitbook.net/java/util/java_util_treemap.html</a>  </p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -2810,8 +2804,8 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html</a><br><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption</a><br><a href="https://www.aboutyun.com/thread-24628-1-1.html" target="_blank" rel="noopener">https://www.aboutyun.com/thread-24628-1-1.html</a></p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -3146,8 +3140,8 @@ LeafQueue 和ParentQueue  一样,使用抽象父类AbstractCSQueue#allocateResou
 
 <h2 id="线上测试用例"><a href="#线上测试用例" class="headerlink" title="线上测试用例"></a>线上测试用例</h2>]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -3204,8 +3198,8 @@ spark.shuffle.service.port 7337   额外的 shuffle service 服务所占用的�
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p> <a href="http://spark.apache.org/docs/2.3.1/configuration.html" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/configuration.html</a><br> <a href="http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service</a>  </p>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
       </tags>
   </entry>
 </search>
