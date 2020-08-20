@@ -48,20 +48,20 @@
 
   <meta name="description" content="与 Spark 类似，Flink 作为分布式计算框架，从外接数据引擎获取数据，计算完成后，并把计算结果输出到外部数据引擎或者触发某些操作。Flink 使用 Connector 来描述外部数据引擎，使用 Source 来定义如何从 Connector 中获取数据，使用 Sink 来定义如何向 Collector 写入数据或者触发某些操作, e.g. 客户端 Feed 实时推荐、告警短信等。Flink">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Flink Connector">
-<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2020-08-15-Flink%20Connector&#x2F;index.html">
+<meta property="og:title" content="01 Flink Connector">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2020-08-15-01Flink%20Connector&#x2F;index.html">
 <meta property="og:site_name" content="Acadia">
 <meta property="og:description" content="与 Spark 类似，Flink 作为分布式计算框架，从外接数据引擎获取数据，计算完成后，并把计算结果输出到外部数据引擎或者触发某些操作。Flink 使用 Connector 来描述外部数据引擎，使用 Source 来定义如何从 Connector 中获取数据，使用 Sink 来定义如何向 Collector 写入数据或者触发某些操作, e.g. 客户端 Feed 实时推荐、告警短信等。Flink">
 <meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;pictures&#x2F;flink&#x2F;flink_connector.png">
 <meta property="og:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;pictures&#x2F;flink&#x2F;flink_src_connector.png">
 <meta property="article:published_time" content="2020-08-14T16:00:00.000Z">
-<meta property="article:modified_time" content="2020-08-15T11:48:29.057Z">
+<meta property="article:modified_time" content="2020-08-20T10:55:37.535Z">
 <meta property="article:author" content="Acadia">
 <meta property="article:tag" content="Flink 1.12">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;img&#x2F;pictures&#x2F;flink&#x2F;flink_connector.png">
 
-<link rel="canonical" href="https://jiulongzhu.github.io/2020-08-15-Flink%20Connector/">
+<link rel="canonical" href="https://jiulongzhu.github.io/2020-08-15-01Flink%20Connector/">
 
 
 <script id="page-configurations">
@@ -73,7 +73,7 @@
   };
 </script>
 
-  <title>Flink Connector | Acadia</title>
+  <title>01 Flink Connector | Acadia</title>
   
     <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
     <script>
@@ -192,7 +192,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
-    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-08-15-Flink%20Connector/">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-08-15-01Flink%20Connector/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -205,7 +205,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          Flink Connector
+          01 Flink Connector
         </h1>
 
         <div class="post-meta">
@@ -227,8 +227,8 @@
       </span>
       <span class="post-meta-item-text">Disqus: </span>
     
-    <a title="disqus" href="/2020-08-15-Flink%20Connector/#comments" itemprop="discussionUrl">
-      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-08-15-Flink Connector/" itemprop="commentCount"></span>
+    <a title="disqus" href="/2020-08-15-01Flink%20Connector/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-08-15-01Flink Connector/" itemprop="commentCount"></span>
     </a>
   </span>
   
@@ -292,7 +292,10 @@
     <a href="/2020-07-03-Spark%20%E8%87%AA%E5%8A%A8%E5%90%88%E5%B9%B6%E5%B0%8F%E6%96%87%E4%BB%B6/" rel="prev" title="Spark 自动合并小文件">
       <i class="fa fa-chevron-left"></i> Spark 自动合并小文件
     </a></div>
-      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2020-08-20-02FlinkKafkaConnector/" rel="next" title="02 FlinkKafkaConnector">
+      02 FlinkKafkaConnector <i class="fa fa-chevron-right"></i>
+    </a></div>
     </div>
       </footer>
     
@@ -373,7 +376,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-count">23</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
@@ -492,9 +495,9 @@
       DISQUS.reset({
         reload: true,
         config: {page: {
-            url: "https://jiulongzhu.github.io/2020-08-15-Flink%20Connector/",
-            identifier: "2020-08-15-Flink Connector/",
-            title: "Flink Connector"
+            url: "https://jiulongzhu.github.io/2020-08-15-01Flink%20Connector/",
+            identifier: "2020-08-15-01Flink Connector/",
+            title: "01 Flink Connector"
           }
         }
       });

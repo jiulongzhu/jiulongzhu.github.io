@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/jerry.icon">
+  <link rel="icon" type="image/png" sizes="16x16" href="/img/jerry.icon">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    hostname: new URL('https://jiulongzhu.github.io').hostname,
+    root: '/',
+    scheme: 'Muse',
+    version: '7.6.0',
+    exturl: false,
+    sidebar: {"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    comments: {"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: 'search.xml',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}
+  };
+</script>
+
+  <meta name="description" content="基于 Flink 1.12-SNAPSHOT 源代码和 Flink-1.11 官方文档    Flink 提供了 Flink Kafka Connector 读取 &#x2F; 写入 Kafka，并可以保证”exactly-once”语义。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="02 FlinkKafkaConnector">
+<meta property="og:url" content="https:&#x2F;&#x2F;jiulongzhu.github.io&#x2F;2020-08-20-02FlinkKafkaConnector&#x2F;index.html">
+<meta property="og:site_name" content="Acadia">
+<meta property="og:description" content="基于 Flink 1.12-SNAPSHOT 源代码和 Flink-1.11 官方文档    Flink 提供了 Flink Kafka Connector 读取 &#x2F; 写入 Kafka，并可以保证”exactly-once”语义。">
+<meta property="article:published_time" content="2020-08-19T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-08-20T11:02:22.568Z">
+<meta property="article:author" content="Acadia">
+<meta property="article:tag" content="Flink 1.12">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://jiulongzhu.github.io/2020-08-20-02FlinkKafkaConnector/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>02 FlinkKafkaConnector | Acadia</title>
+  
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-145379133-1"></script>
+    <script>
+      if (CONFIG.hostname === location.hostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-145379133-1');
+      }
+    </script>
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Acadia</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+        <p class="site-subtitle">Acadia</p>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-fw fa-user"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>Tags</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2020-08-20-02FlinkKafkaConnector/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Acadia">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Acadia">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          02 FlinkKafkaConnector
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-08-20 00:00:00" itemprop="dateCreated datePublished" datetime="2020-08-20T00:00:00+08:00">2020-08-20</time>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2020-08-20-02FlinkKafkaConnector/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020-08-20-02FlinkKafkaConnector/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>基于 Flink 1.12-SNAPSHOT 源代码和 Flink-1.11 官方文档   </p>
+<p>Flink 提供了 Flink Kafka Connector 读取 / 写入 Kafka，并可以保证”exactly-once”语义。</p>
+<a id="more"></a>
+
+<h2 id="Dependency"><a href="#Dependency" class="headerlink" title="Dependency"></a>Dependency</h2><p>Kafka 不同版本之间的通信协议是不同的，因此 Flink 提供了多版本的 Flink-Kafka-Connector。虽然 Flink 源代码中包含多版本的 Flink-Kafka-Connector，但发布安装包中不包含，因此应用需要自带Flink-Kafka-Connector 依赖。</p>
+<p>artifactId 中 011 / 010指 kafka 版本，2.11 指 scala 版本。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">&lt;!-- for kafka-0.11 --&gt;</span><br><span class="line">&lt;dependency&gt;</span><br><span class="line">    &lt;groupId&gt;org.apache.flink&lt;&#x2F;groupId&gt;</span><br><span class="line">    &lt;artifactId&gt;flink-connector-kafka-011_2.11&lt;&#x2F;artifactId&gt;</span><br><span class="line">    &lt;version&gt;1.11.0&lt;&#x2F;version&gt;</span><br><span class="line">&lt;&#x2F;dependency&gt;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">&lt;!-- for kafka-0.10; FlinkKafkaConnector010 不能在写入 kafka 时保证 exactly-once 语义--&gt;</span><br><span class="line">&lt;dependency&gt;</span><br><span class="line">    &lt;groupId&gt;org.apache.flink&lt;&#x2F;groupId&gt;</span><br><span class="line">    &lt;artifactId&gt;flink-connector-kafka-010_2.11&lt;&#x2F;artifactId&gt;</span><br><span class="line">    &lt;version&gt;1.11.0&lt;&#x2F;version&gt;</span><br><span class="line">&lt;&#x2F;dependency&gt;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Kafka-Consumer"><a href="#Kafka-Consumer" class="headerlink" title="Kafka Consumer"></a>Kafka Consumer</h2><p>FlinkKafkaConsumer 提供了读取 Kafka 一个或多个 Topic 数据的入口，FlinkKafkaConsumer011 对应 flink-connector-kafka-011、FlinkKafkaConsumer010 对应 010….  </p>
+<p>必须提供的信息：</p>
+<ol>
+<li>topic 或者 topic 列表</li>
+<li>序列化 / 序列化 schema，以将 Kafka 二进制数据转换为内存中的对象</li>
+<li>consumer 信息：broker (逗号分隔)、consumer group id</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">val properties &#x3D; new Properties()</span><br><span class="line">properties.setProperty(&quot;bootstrap.servers&quot;, &quot;localhost:9092&quot;)</span><br><span class="line">properties.setProperty(&quot;group.id&quot;, &quot;test&quot;)</span><br><span class="line">stream &#x3D; env</span><br><span class="line">    .addSource(new FlinkKafkaConsumer[String](&quot;topic&quot;, new SimpleStringSchema(), properties))</span><br></pre></td></tr></table></figure>
+
+<h3 id="序列化-反序列化-schema"><a href="#序列化-反序列化-schema" class="headerlink" title="序列化 / 反序列化 schema"></a>序列化 / 反序列化 schema</h3><p>Flink 提供了一下 序列化 / 反序列化 schema：</p>
+<ol>
+<li>TypeInformationSerializationSchema / TypeInformationKeyValueSerializationSchema，前者用于把记录序列化或反序列化，后者用于把记录的 key / value 分别序列化或反序列化。这两种模式应用于 Kafka 数据是被 Flink 写入且读取时，是通用的序列化反序列化 schema 的高性能替代方式    </li>
+<li>Json(De)serializationSchema / JSONKeyValue(De)serializationSchema，使用 Jackson 将数据以 ObjectNode 和 Json 之间互转。    </li>
+<li>Avro(De)serializationSchema，使用静态的 AVRO 模式定义来 序列化 / 反序列化 数据，依赖是 org.apache.flink:flink-avro；并提供了另外一种变式，可以在 Kafka 的 Registry Schema 中读取数据写入时的模式，依赖是 org.apache.flink:flink-avro-confluent-registry。 AVRO 中最好不包含嵌套结构。    </li>
+<li>其他常用：SimpleStringSchema 等<br>当遇到任何原因导致的反序列化失败时，反序列化返回 null 值。这将触发 Flink 的容错，最终会陷入 反序列化失败-&gt;容错重试-&gt;反序列化失败 的循环。  </li>
+</ol>
+<h3 id="定制开始消费位置"><a href="#定制开始消费位置" class="headerlink" title="定制开始消费位置"></a>定制开始消费位置</h3><p>Flink Kafka Connector 提供了四种方式 允许定制在 topic partition 开始消费的位置：   </p>
+<ol>
+<li>setStartFromGroupOffsets(默认方式)：从 consumer group 提交给 zookeeper 的 offset 处开始读取，如果 partition 当前 offset 区间不包含此 offset，那么 auto.offset.reset 将生效。   </li>
+<li>setStartFromEarliest / setStartFromLatest：从 partition 的最老 / 最新 数据处开始读取。此模式将忽略 consumer group 提交给 zookeeper 的 offset。   </li>
+<li>setStartFromTimestamp：每条记录发送到 broker 或 broker 确认记录时为数据打上的时间戳，使用此方式时将从 时间戳大于等于指定时间戳的记录处开始消费，如果 partition 中最新数据的时间戳低于此值，那么将从最新的数据处开始消费(存疑，等待还是消费)。此模式将忽略 consumer group 提交给 zookeeper 的 offset。    </li>
+<li>setStartFromSpecificOffsets：可以指定从每个 partition 的 offset 处开始消费。如果在 topic 的所有 partition 中存在未指定 offset 的 partition，那么为此 partition 将回退(fallback)到 setStartFromGroupOffsets 模式从 zookeeper offset 处开始读取。  </li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">val env &#x3D; StreamExecutionEnvironment.getExecutionEnvironment()</span><br><span class="line"> </span><br><span class="line">val myConsumer &#x3D; new FlinkKafkaConsumer[String](...)</span><br><span class="line">myConsumer.setStartFromEarliest()      &#x2F;&#x2F; start from the earliest record possible</span><br><span class="line">myConsumer.setStartFromLatest()        &#x2F;&#x2F; start from the latest record</span><br><span class="line">myConsumer.setStartFromTimestamp(...)  &#x2F;&#x2F; start from specified epoch timestamp (milliseconds)</span><br><span class="line">myConsumer.setStartFromGroupOffsets()  &#x2F;&#x2F; the default behaviour</span><br><span class="line"> </span><br><span class="line">val specificStartOffsets &#x3D; new java.util.HashMap[KafkaTopicPartition, java.lang.Long]()  &#x2F;&#x2F; start from specific offset</span><br><span class="line">specificStartOffsets.put(new KafkaTopicPartition(&quot;myTopic&quot;, 0), 23L)</span><br><span class="line">specificStartOffsets.put(new KafkaTopicPartition(&quot;myTopic&quot;, 1), 31L)</span><br><span class="line">specificStartOffsets.put(new KafkaTopicPartition(&quot;myTopic&quot;, 2), 43L)</span><br><span class="line">myConsumer.setStartFromSpecificOffsets(specificStartOffsets)</span><br><span class="line">val stream &#x3D; env.addSource(myConsumer)</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+</blockquote>
+<p>当作业从 Checkpoint 或 SavePoint 中恢复时，这些消费位置的定制方法不会影响开始消费位置。<br>在恢复时，每个 topic partition offset 取值于存储在 SavePoint 或 CheckPoint 中的 offset。   </p>
+<h3 id="Consumer-容错"><a href="#Consumer-容错" class="headerlink" title="Consumer 容错"></a>Consumer 容错</h3><ol>
+<li>当启用了 checkpoint 时，Flink Kafka Consumer 会从 topic 中消费记录并周期性地 checkpoint kafka offset 和其他操作的状态。当 Flink 应用失败时 会从最新的 checkpoint 中恢复并从  checkpoint 存储的 topic offset 处开始消费数据。  </li>
+<li>当禁用了 checkpoint 时，Flink Kafka Consumer 会周期性地提交 offset 到 zookeeper。   </li>
+</ol>
+<h3 id="topic-partition-自动发现"><a href="#topic-partition-自动发现" class="headerlink" title="topic / partition 自动发现"></a>topic / partition 自动发现</h3><p>在生产环境中，应用消费的 topic 数量或者 topic 的 partition 数量可能是随 需求 / 负载扩容 等变化的。Flink 提供了机制以满足 topic 和 partition 自动发现。  </p>
+<p>partition 自动发现：默认情况是分区自动发现是禁用的，设置 flink.partition-discovery.interval-millis 非负即可启用，所有自动发现的分区都会从分区最开始处消费。<br>topic 自动发现：同分区自动发现，设置 flink.partition-discovery.interval-millis 非负且设置 topic 为正则表达式即可启用。<br>FlinkKafkaConsumer 内部会启动一个独立的线程定期去 Kafka 获取最新的 meta 信息，并调整作业。  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">val properties &#x3D; new Properties()</span><br><span class="line">properties.setProperty(&quot;bootstrap.servers&quot;, &quot;localhost:9092&quot;)</span><br><span class="line">properties.setProperty(&quot;group.id&quot;, &quot;test&quot;)</span><br><span class="line">properties.set(&quot;flink.partition-discovery.interval-millis&quot;,&quot;600000&quot;)</span><br><span class="line"> </span><br><span class="line">val myConsumer &#x3D; new FlinkKafkaConsumer[String](</span><br><span class="line">  java.util.regex.Pattern.compile(&quot;test-topic-[0-9]&quot;),</span><br><span class="line">  new SimpleStringSchema,</span><br><span class="line">  properties)</span><br></pre></td></tr></table></figure>
+
+<p>可以持续自动发现名称满足 以”test-topic”开头以 [0-9] 任一数字结尾的 topic。如果仅设置正则表达式而不设置 flink.partition-discovery.interval-millis，则只在应用启动时发现一次，不能持续自动发现。如果仅设置 flink.partition-discovery.interval-millis 不设置正则表达式，则只对分区自动发现。     </p>
+<h3 id="Consumer-提交-Offset-回-Kafka-配置"><a href="#Consumer-提交-Offset-回-Kafka-配置" class="headerlink" title="Consumer 提交 Offset 回 Kafka 配置"></a>Consumer 提交 Offset 回 Kafka 配置</h3><p>Flink Kafka Consumer 允许配置 Consumer 提交 Offset 回 Kafka 的方式，但是并不是为了使用 zookeeper offset 保证容错，而是为了展示消费进度以便于监控和滞后调整。<br>Consumer 提交 Offset  回 Kafka 的方式取决于作业是否启用了 checkpoint。    </p>
+<ol>
+<li>启用 checkpoint：当 checkpoint 完成时，Flink Kafka Consumer 将提交存储在 checkpoint 中的 offset，这可以确保 checkpoint offset 和 zookeeper offset 一致。自动提交间隔取决于 checkpoint 间隔，且延时较大。用户可以调用 setCommitOffsetsOnCheckpoints(false) 来禁止提交到 zookeeper，默认情况下为 true。启用 checkpoint 时将忽略 enable.auto.commit / auto.commit.interval.ms 配置。  </li>
+<li>禁用 checkpoint：Flink Kafka Consumer 使用内部 Kafka Client 来周期性提交 offset。因此可以通过配置来 enable.auto.commit / auto.commit.interval.ms 来 启用 / 禁用 / 订制 自动提交 offset 到 zookeeper。 </li>
+</ol>
+<h3 id="水印线-WaterMark"><a href="#水印线-WaterMark" class="headerlink" title="水印线(WaterMark)"></a>水印线(WaterMark)</h3><p>一般称作水印，但是称作水印线会更贴切一些。<br>很多场景下，记录的时间戳嵌入在记录本身或者 ConsumerRecord 的元数据中，此外 consumer 可能需要根据记录的时间戳 兼容数据乱序和触发一些操作。Flink Kafka Consumer 允许指定一个水印线策略。  </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">val properties &#x3D; new Properties()</span><br><span class="line">properties.setProperty(&quot;bootstrap.servers&quot;, &quot;localhost:9092&quot;)</span><br><span class="line">properties.setProperty(&quot;group.id&quot;, &quot;test&quot;)</span><br><span class="line">val myConsumer &#x3D;</span><br><span class="line">    new FlinkKafkaConsumer(&quot;topic&quot;, new SimpleStringSchema(), properties);</span><br><span class="line">myConsumer.assignTimestampsAndWatermarks(</span><br><span class="line">    WatermarkStrategy.</span><br><span class="line">        .forBoundedOutOfOrderness(Duration.ofSeconds(20)))</span><br><span class="line">val stream &#x3D; env.addSource(myConsumer)</span><br><span class="line"></span><br><span class="line">&#96;&#96;&#96; </span><br><span class="line"></span><br><span class="line"></span><br><span class="line">WatermarkStrategy.forBoundedOutOfOrderness(Duration.ofSeconds(20)) 一般用于为无序数据创建水印策略时设置数据无序程度的上限。假设无序程度的上限为 B，那么当当前数据中时间戳为 T 时，Flink 认为不会再出现比 (T-B)更早的数据，即 如 B&#x3D;20s，T&#x3D;2020-08-10 10：00：20，那么认为不会再有早于 2020-08-10 10：00：00 的数据。 如果有早于 T-B 的数据 那么</span><br><span class="line">会为每一条 早于 T-B 的数据触发独立的行为，e.g. window &#x2F; 数据更新。过多早于 T-B 的数据会导致性能问题和数据一致性问题。  </span><br><span class="line">因此无序程度上限 B 的设置十分重要，必须深度了解业务和数据情况才能设置。   </span><br><span class="line"></span><br><span class="line">![WaterMark 和 Window](&#x2F;img&#x2F;pictures&#x2F;flink&#x2F;flink_watermark.png)   </span><br><span class="line"></span><br><span class="line"></span><br><span class="line">## Kafka Producer</span><br><span class="line"></span><br><span class="line">Flink 提供了写入数据流到 Kafka 一个或多个 Topic 的功能，FlinkKafkaProducer011 对应 kafka-0.11，FlinkKafkaProducer010 对应 kafka-010...  </span><br><span class="line">必须提供的信息：  </span><br><span class="line"></span><br><span class="line">1. 一个写入数据时默认的 topic 名称  </span><br><span class="line">2. 序列化方式，将内存中的数据结构序列化成 Kafka 二进制数据  </span><br><span class="line">3. Kafka Client 配置，bootstrap.servers 是必须的(逗号分隔)  </span><br><span class="line">4. 一个容错语义，一般是 exactly-once</span><br></pre></td></tr></table></figure>
+<p>val stream: DataStream[String] = …
+Properties properties = new Properties
+properties.setProperty(“bootstrap.servers”, “localhost:9092”)
+val myProducer = new FlinkKafkaProducer[String](
+        “my-topic”,                  // default target topic
+        new SimpleStringSchema(),    // serialization schema
+        properties,                  // producer config
+        FlinkKafkaProducer.Semantic.EXACTLY_ONCE) // fault-tolerance
+stream.addSink(myProducer)</p>
+<pre><code>
+### Producer 容错
+
+当启用 checkpoint 时，FlinkKafkaProducer011 可以提供 exactly-once 语义，FlinkKafkaProducer010 可以提供 at-least-once 语义 不能提供 exactly-once 语义。    
+可以指定的语义：  
+
+1. Semantic.NONE: Flink 不保证任何事，记录可能会丢失也可能会重复   
+2. Semantic.AT\_LEAST\_ONCE(默认): Flink 保证记录不会丢失，但是可能会重复  
+3. Semantic.EXACTLY\_ONCE: 使用 Kafka 事务来保证 exactly-once 语义。当使用事务向 Kafka 写数据时，需要对相关 topic 的 consumer 设置&quot;隔离级别(isolation.level)&quot;。隔离级别分两种 read\_committed 或 read\_uncommitted(默认)。   
+
+&gt;  
+注意事项:
+
+1. Semantic.EXACTLY\_ONCE mode relies on the ability to commit transactions that were started before taking a checkpoint, after recovering from the said checkpoint. If the time between Flink application crash and completed restart is larger than Kafka’s transaction timeout there will be data loss (Kafka will automatically abort transactions that exceeded timeout time).
+exactly-once 语义依赖于 提交 “开始于 checkpoint 之前” 和 “从 checkpoint 恢复之后”的事务的能力。如果 Flink 应用从崩溃到完全恢复所用的时间大于 Kafka 事务超时时间，那么数据会丢失(Kafka 会自动放弃超时事务)。 
+2. 由于“译不准&quot;，此处似乎也可以理解为 &quot;exactly-once 语义依赖于提交特殊事务的能力，特殊事务开始于 checkpoint 之前，终止于从 checkpoint 恢复之后&quot;。事务开启，状态尚未存储而应用挂掉，恢复后事务超时被 Broker 放弃导致了数据丢失，无法保证&quot;exactly-once&quot;语义。  
+
+
+FlinkKafkaProducer 要求&quot;exactly-once&quot;语义时，topic 的所有 consumer 都必须设置隔离级别，默认为 read\_uncommitted。    
+
+&gt;  
+关于 read_committed 模式，在 KafkaConsumer 启用了 read\_committed 模式时，任何 未完成 / 未终止 的事务将会阻塞对该事务之后的所有事务的读取。  例如:     
+
+1. producer 开启 transaction1 并写入了一些记录    
+2. producer 开启了 transaction2 并写入了其他记录    
+3. producer commit transaction2  
+即使 transaction2 已经被 commit，其记录对于所有的 consumer 都不可见，直到 transaction1 被提交或终止。  这种模式有两个含义：  
+
+1. 在 Flink application 正常运行期间，输出到 topic 记录的可见性会有一定延迟，这等于已完成 checkpoint 的平均时间。   
+2. 当 Flink application 失败，将阻塞其写入的 topic 的所有 consumer，直到应用重启或者 Kafka transaction 超时。在有多个 producer / consumer 同时操作同一个 topic 时&quot;exacty-once&quot;造成的阻塞风险需要评估。      
+
+### 分区方案  
+
+使用 FlinkKafkaProducer 向 Kafka 写数据时，如果不指定分区器 Partitioner，默认使用 FlinkFixedPartitioner。该 Partitioner 分区的方式是将 Task 所在的实例 Id 按照 topic partition 总数取余将 sink 映射到单个的 topic partition 上，即：partitions[parallelInstanceId % partitions.length]。如果 topic partition 总数为 5，sink 并发度为 2，那么最终只有两个 topic partition 有数据；如果 sink 并发度为 6，那么 1 号 partition 有两个 sink 在写，会导致 Broker 负载均衡问题。  
+如果指定 Partitioner 为 null，会使用 kafka producer 默认的分区方式，sink 可能会轮询写所有 partition。topic partition 的数据比较均衡，但是会相对保持更多的网络连接。     
+因此使用 FlinkFixedPartitioner 并配置 sink 并发度为 topic partition 数量的整数倍较合理。    
+
+## Kerberos 认证  
+Flink 为连接到开启了 Kerberos 认证的 Kafka 集群 通过 FlinkKafkaConnector 提供了支持。只需要在 flink-conf.yaml 中简单配置即可启用 kerberos    
+
+1. 配置以下配置项
+
+- security.kerberos.login.use-ticket-cache：默认情况下为 true，Flink 尝试使用 kinit 管理的 ticket cache 中的 kerberos 证书(credentials)，但是当 Flink Job 被部署到 Yarn 和 Mesos 时，这个配置是不生效的，因为 Yarn 和 Mesos 不支持使用 ticket cache 中的证书认证      
+- security.kerberos.login.keytab and security.kerberos.login.principal：使用 kerberos keytab 来认证     
+
+2. 在 security.kerberos.login.contexts 配置后追加 KafkaClient：此配置告诉 Flink 提供已配置的 kerberos 证书给 Kafka Login Context 以进行 Kafka 认证    
+
+
+一旦基于 Kerberos 认证的 Flink 安全机制启用后，可以在 FlinkKafkaProducer / FlinkKafkaConsumer 中添加两个配置以传给内部的 KafkaClient 来进行 Kafka 认证。    
+
+1. 设置 security.protocol 为 SASL\_PLAINTEXT(默认 NONE): 此协议用于和 Broker 通信。使用 standalone 部署 Flink 时可以设置 security.protocol 为 SASL\_SSL。
+2. 设置 sasl.kerberos.service.name 为 kafka(默认 kafka)：这个值应该和 Broker 配置的 sasl.kerberos.service.name 值一致。客户端和服务端的服务名称不一致将导致认证失败
+
+
+## 参考  
+
+1. https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/connectors/kafka.html#kafka-consumer  
+2. https://blog.csdn.net/lmalds/article/details/52704170  
+
+</code></pre>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Flink-1-12/" rel="tag"># Flink 1.12</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020-08-15-01Flink%20Connector/" rel="prev" title="01 Flink Connector">
+      <i class="fa fa-chevron-left"></i> 01 Flink Connector
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Dependency"><span class="nav-number">1.</span> <span class="nav-text">Dependency</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Kafka-Consumer"><span class="nav-number">2.</span> <span class="nav-text">Kafka Consumer</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#序列化-反序列化-schema"><span class="nav-number">2.1.</span> <span class="nav-text">序列化 &#x2F; 反序列化 schema</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#定制开始消费位置"><span class="nav-number">2.2.</span> <span class="nav-text">定制开始消费位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Consumer-容错"><span class="nav-number">2.3.</span> <span class="nav-text">Consumer 容错</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#topic-partition-自动发现"><span class="nav-number">2.4.</span> <span class="nav-text">topic &#x2F; partition 自动发现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Consumer-提交-Offset-回-Kafka-配置"><span class="nav-number">2.5.</span> <span class="nav-text">Consumer 提交 Offset 回 Kafka 配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#水印线-WaterMark"><span class="nav-number">2.6.</span> <span class="nav-text">水印线(WaterMark)</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Acadia</p>
+  <div class="site-description" itemprop="description">Hello World!</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">23</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/jiulongzhu" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;jiulongzhu" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:xxx.jiulong.zhu@gmail.com" title="E-Mail → mailto:xxx.jiulong.zhu@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 2019 – 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Acadia</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> v4.1.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.6.0
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://jiulong.zhu.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: {page: {
+            url: "https://jiulongzhu.github.io/2020-08-20-02FlinkKafkaConnector/",
+            identifier: "2020-08-20-02FlinkKafkaConnector/",
+            title: "02 FlinkKafkaConnector"
+          }
+        }
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://jiulong.zhu.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

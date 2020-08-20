@@ -186,6 +186,94 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-10-05-Yarn%20PreemptionSystem/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Acadia">
+      <meta itemprop="description" content="Hello World!">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Acadia">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2019-10-05-Yarn%20PreemptionSystem/" class="post-title-link" itemprop="url">Yarn PreemptionSystem</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-10-05 00:00:00" itemprop="dateCreated datePublished" datetime="2019-10-05T00:00:00+08:00">2019-10-05</time>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus: </span>
+    
+    <a title="disqus" href="/2019-10-05-Yarn%20PreemptionSystem/#comments" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2019-10-05-Yarn PreemptionSystem/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Yarn 使用树状层级队列组织方式来管理资源,所有 NodeManager 持有的资源聚集作为资源根队列 root 来代表集群中所有可用资源,root可有有多个子队列,子队列也可以有自己的子队列,树状层级结构的最底层为叶子队列.除 root 外,每个子队列都会持有父队列一定比例的资源 即最低配额(Configured Capacity),以及最多可持有的资源 即最高配额(Configured Max Capacity).以上是 Yarn 的资源组织方式。<br>Yarn 采用两阶段资源调度模型.第一阶段 客户端向 ResourceManager 申请资源启动 ApplicationMaster 作为 Application 的资源协调和 task 监控角色;第二阶段 计算框架驱动角色通过 AppliationMaster 向 ResourceManager 申请资源运行 Worker 角色。 ApplicationMaster 和 Worker角色资源申请及分配都是异步的过程,当 NodeManager 向 ResourceManager 汇报心跳时,附带了自身正在运行和已经完成的 Container 信息,并触发了资源调度器的 NodeUpdate 事件,调度器通过以下过程尝试分配资源     </p>
+<ol>
+<li>调度器委派 RootQueue 尝试进行资源分配  </li>
+<li>RootQueue 委派其 ChildQueue(直至 LeafQueue) 尝试进行资源分配  </li>
+<li>遍历 Application 的 ResourceRequest,尝试进行分配或保留  </li>
+<li>若分配或保留成功,则同步 Queue/Application/NodeManager 信息.若分配成功,则触发 Container 的转变为 ALLOCATED 状态:RM 已经分配了资源给 APP(Attempt),但是 AM 此时还不知道,直至 AM 和 RM 的下次心跳时 AM 将对此 Container 做调度:下载依赖,准备运行环境,启动主类等;若保留成功,则该节点后续上报心跳时,将会跳过其分配调度,直至其可用资源量达到了保留资源的要求,则被保留的 Container 将会由 RESERVED 转换为 ALLOCATED 状态.保留资源固然在某种程度上算是浪费,但是保证了大 container 的 application 不会饿死      </li>
+<li>NM 监控自身运行的所有 Container 状态,对于新启动和运行状态的 Container 以及运行完成的 Container 都会通过心跳告知 RM,RM 同步信息,更新各 Container 状态.若 Container 已经完成则在 RM 端同步 Queue/Application/NodeManager 信息<br>以上是 Yarn 常规调度机制。<br>层级队列中除 root 外,每个队列可以设置其拥有父队列的最低配额和最高配额.最高配额是队列无论在任何情况下都不会超出的用量,最低配额是在队列有任务时尽可能保证的配额.为了提高集群整体的资源利用率,Yarn 引入了抢占机制:  </li>
+<li>在队列中无任务运行时,队列没有必要硬遵守保留最低配额,可以将资源借给负载较高的其他队列     </li>
+<li>当借出资源的队列接收到了新提交的应用时,将出借的资源收回以满足资源需求<br>以上是Yarn 抢占调度机制。第 1 点由 Yarn 资源调度器来实现;第 2 点只有调度器实现了 PreemptableResourceScheduler 接口,且抢占策略实现了SchedulingEditPolicy时才能实现<br>本文侧重于第 2 点,并试图解决一些在小集群申请大容器的问题    </li>
+</ol>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2019-10-05-Yarn%20PreemptionSystem/#more" rel="contents">
+                Read more &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-Hans">
     <link itemprop="mainEntityOfPage" href="https://jiulongzhu.github.io/2019-09-15-Yarn:movetoqueue%E5%AF%BC%E8%87%B4%E7%9A%84UIcontainer%E6%B3%84%E9%9C%B2%E9%97%AE%E9%A2%98%E7%9A%84%E4%BF%AE%E5%A4%8D%E6%80%9D%E8%B7%AF/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -411,7 +499,7 @@ Used Capacity、Absolute Used Capacity、Used Resource、Num Containers指标非
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-count">23</span>
           <span class="site-state-item-name">posts</span>
         </a>
       </div>
