@@ -560,8 +560,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <p>注: 高压缩率 ORC 文件 4MB 解压后有 4G 左右的大小，可能需要降低下限    </p>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1011,8 +1011,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 </tbody></table>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1393,8 +1393,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">def lookupFunction(</span><br><span class="line">      name: FunctionIdentifier,</span><br><span class="line">      children: Seq[Expression]): Expression &#x3D; synchronized &#123;</span><br><span class="line">    if (name.database.isEmpty &amp;&amp; functionRegistry.functionExists(name)) &#123;</span><br><span class="line">      &#x2F;&#x2F; This function has been already loaded into the function registry.</span><br><span class="line">      return functionRegistry.lookupFunction(name, children)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    &#x2F;&#x2F; If the name itself is not qualified, add the current database to it.</span><br><span class="line">    val database &#x3D; formatDatabaseName(name.database.getOrElse(getCurrentDatabase))</span><br><span class="line">    val qualifiedName &#x3D; name.copy(database &#x3D; Some(database))</span><br><span class="line"></span><br><span class="line">    if (functionRegistry.functionExists(qualifiedName)) &#123;</span><br><span class="line">      return functionRegistry.lookupFunction(qualifiedName, children)</span><br><span class="line">    &#125;</span><br><span class="line">    val catalogFunction &#x3D; try &#123;</span><br><span class="line">      externalCatalog.getFunction(database, name.funcName)</span><br><span class="line">    &#125; catch &#123;</span><br><span class="line">      case _: AnalysisException &#x3D;&gt; failFunctionLookup(name)</span><br><span class="line">      case _: NoSuchPermanentFunctionException &#x3D;&gt; failFunctionLookup(name)</span><br><span class="line">    &#125;</span><br><span class="line">    loadFunctionResources(catalogFunction.resources)</span><br><span class="line">    registerFunction(catalogFunction.copy(identifier &#x3D; qualifiedName), overrideIfExists &#x3D; false)</span><br><span class="line">    &#x2F;&#x2F; Now, we need to create the Expression.</span><br><span class="line">    functionRegistry.lookupFunction(qualifiedName, children)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1431,8 +1431,8 @@ sh ParseHeapDump.sh PID.dump  org.eclipse.mat.api:suspects org.eclipse.mat.api:o
 <p>visitTable 方法的返回值是 UnresovedRelation<br>visitStar 方法的返回值是 UnresolvedStar<br>visitColumnReference 方法的返回值是 UnresolvedRegex 或 UnresolvedAttribute<br>visitFunctionCall 方法的返回值是 UnresolvedWindowExpression 或 WindowExpression<br>….</p>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark SQL</tag>
       </tags>
   </entry>
@@ -1988,8 +1988,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>Spark 2.3.0</tag>
         <tag>Spark On Yarn</tag>
       </tags>
   </entry>
@@ -2039,8 +2039,8 @@ d. 规整队列待抢占量
 </ol>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -2654,8 +2654,8 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ReservationSystem.html</a><br><a href="https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us" target="_blank" rel="noopener">https://www.slideshare.net/Hadoop_Summit/reservations-based-scheduling-if-youre-late-dont-blame-us</a><br><a href="http://gitbook.net/java/util/java_util_treemap.html" target="_blank" rel="noopener">http://gitbook.net/java/util/java_util_treemap.html</a>  </p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -2804,8 +2804,8 @@ arrival=t0,deadline=t5<br>ReservationRequests(RRS) 中有一个 ReservationReque
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html" target="_blank" rel="noopener">https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/NodeLabel.html</a><br><a href="https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption" target="_blank" rel="noopener">https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Capacity\_Scheduler\_container\_preemption</a><br><a href="https://www.aboutyun.com/thread-24628-1-1.html" target="_blank" rel="noopener">https://www.aboutyun.com/thread-24628-1-1.html</a></p>
 ]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -3140,8 +3140,8 @@ LeafQueue 和ParentQueue  一样,使用抽象父类AbstractCSQueue#allocateResou
 
 <h2 id="线上测试用例"><a href="#线上测试用例" class="headerlink" title="线上测试用例"></a>线上测试用例</h2>]]></content>
       <tags>
-        <tag>源码解析</tag>
         <tag>Yarn 2.7.3</tag>
+        <tag>源码解析</tag>
       </tags>
   </entry>
   <entry>
@@ -3198,8 +3198,8 @@ spark.shuffle.service.port 7337   额外的 shuffle service 服务所占用的�
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p> <a href="http://spark.apache.org/docs/2.3.1/configuration.html" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/configuration.html</a><br> <a href="http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service" target="_blank" rel="noopener">http://spark.apache.org/docs/2.3.1/running-on-yarn.html#configuring-the-external-shuffle-service</a>  </p>
 ]]></content>
       <tags>
-        <tag>Spark 2.3.0</tag>
         <tag>源码解析</tag>
+        <tag>Spark 2.3.0</tag>
       </tags>
   </entry>
 </search>
