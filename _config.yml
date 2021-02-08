@@ -1,1 +1,69 @@
-theme: jekyll-theme-time-machine
+# Hexo Configuration
+## Docs: https://hexo.io/docs/configuration.html
+## Source: https://github.com/hexojs/hexo/
+
+title: Acadia
+subtitle: Acadia
+email: xxx.jiulongzhu@gmail.com,vtygoss@126.com
+description: Hello World!
+author: Acadia
+language: zh-Hans
+timezone: Asia/Shanghai
+
+url: https://jiulongzhu.github.io/
+root: /
+permalink: :title/
+permalink_defaults:
+
+# Directory
+source_dir: source
+public_dir: public
+tag_dir: tags
+archive_dir: archives
+category_dir: categories
+code_dir: downloads/code
+i18n_dir: :lang
+skip_render:
+
+# Writing
+new_post_name: :title.md
+default_layout: post
+titlecase: false
+external_link: true
+filename_case: 0
+render_drafts: false
+post_asset_folder: false
+relative_link: false
+future: true
+highlight:
+  enable: true
+  line_number: true
+  auto_detect: false
+  tab_replace:
+
+# Category & Tag
+default_category: uncategorized
+category_map:
+tag_map:
+
+# Date / Time format
+date_format: YYYY-MM-DD
+time_format: HH:mm:ss
+
+# Pagination
+per_page: 10
+pagination_dir: page
+
+# Extensions
+#theme: next
+theme: yilia
+#https://github.com/zhisheng17/zhisheng17.github.io
+# Deployment
+deploy:
+  type: git
+  repo: https://github.com/jiulongzhu/jiulongzhu.github.io.git
+  branch: master
+
+marked:
+  gfm: true
+  breaks: false
